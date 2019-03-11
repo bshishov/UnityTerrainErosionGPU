@@ -1,0 +1,260 @@
+﻿#pragma kernel RainAndControl
+#pragma kernel FluxComputation
+#pragma kernel FluxApply
+#pragma kernel HydraulicErosion
+#pragma kernel SedimentAdvection
+
+
+// Heightmap (R - height, G - water height, B - suspended sediment amount)
+RWTexture2D<float4> HeightMap;
+
+// Velocity field (R - velocity x, G - velocity y)
+RWTexture2D<float2> VelocityMap;
+
+// Flux field (R - left, G - right, B - top, A - bottom)
+RWTexture2D<float4> FluxMap;
+
+#define LDIR(col) (col.r)
+#define RDIR(col) (col.g)
+#define TDIR(col) (col.b)
+#define BDIR(col) (col.a)
+
+#define SAMPLE_OFFSET(tex, x, y) ((tex[id.xy + uint2(x, y)]))
+#define SAMPLE_CURRENT(tex) (tex[id.xy])
+#define SAMPLE_LEFT(tex) (SAMPLE_OFFSET(tex, -1, 0))
+#define SAMPLE_RIGHT(tex) (SAMPLE_OFFSET(tex, 1, 0))
+#define SAMPLE_TOP(tex) (SAMPLE_OFFSET(tex, 0, 1))
+#define SAMPLE_BOTTOM(tex) (SAMPLE_OFFSET(tex, 0, -1))
+
+#define TERRAIN_HEIGHT(col) (col.r)
+#define WATER_HEIGHT(col) (col.g)
+#define SEDIMENT(col) (col.b)
+#define HARDNESS(col) (col.a)
+#define FULL_HEIGHT(col) ((TERRAIN_HEIGHT(col) + WATER_HEIGHT(col)))
+
+//#define UNPACK(val) (val * 2 - 1)
+//#define PACK(val) (val * 0.5 + 0.5)
+
+#define PACK(val) (val)
+#define UNPACK(val) (val)
+
+#define VELOCITY_X(col) (col.r)
+#define VELOCITY_Y(col) (col.g)
+
+
+#define SUM_COMPS(v) ((v.r + v.g + v.b + v.a))
+
+// Fluid simulation
+float _TimeDelta;
+float _PipeArea;
+float _Gravity;
+float _PipeLength;
+float2 _CellSize;
+float _Evaporation;
+float _RainRate;
+float4 _InputControls;
+
+// Hydraulic rrosion
+float _SedimentCapacity;
+float _MaxErosionDepth;
+float _SuspensionRate;
+float _DepositionRate; 
+float _SedimentSofteningRate;
+
+float4 SampleBilinear(RWTexture2D<float4> tex, float2 uv)
+{
+	float2 uva = floor(uv);
+	float2 uvb = ceil(uv);
+
+	uint2 id00 = (uint2)uva;  // 0 0
+	uint2 id10 = uint2(uvb.x, uva.y); // 1 0
+	uint2 id01 = uint2(uva.x, uvb.y); // 0 1	
+	uint2 id11 = (uint2)uvb; // 1 1
+
+	float2 d = uv - uva;
+
+	return
+		tex[id00] * (1 - d.x) * (1 - d.y) +
+		tex[id10] * d.x * (1 - d.y) +
+		tex[id01] * (1 - d.x) * d.y +
+		tex[id11] * d.x * d.y;
+}
+
+/* Pass 1. Rain simulation and brush drawing */
+[numthreads(8, 8, 1)]
+void RainAndControl(uint3 id : SV_DispatchThreadID) 
+{	
+	float4 currentState = SAMPLE_CURRENT(HeightMap);
+	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate;	
+
+	// Water-drawing brush
+	float2 uv = (float2)id.xy / 256;
+	float2 dist = uv - _InputControls.xy;
+	if (length(dist) < abs(_InputControls.z)) 
+	{
+		if (_InputControls.z > 0)
+			WATER_HEIGHT(currentState) = max(0, WATER_HEIGHT(currentState) + _InputControls.w * _TimeDelta);
+		else
+			TERRAIN_HEIGHT(currentState) = max(0, TERRAIN_HEIGHT(currentState) + _InputControls.w * _TimeDelta);
+	}
+
+	// Write new state to the HeightMap
+	SAMPLE_CURRENT(HeightMap) = currentState;
+}
+
+[numthreads(8, 8, 1)]
+void FluxComputation(uint3 id : SV_DispatchThreadID) 
+{
+	// Sample the heighmap (state map)
+	float4 state = SAMPLE_CURRENT(HeightMap);
+	float4 stateLeft = SAMPLE_LEFT(HeightMap);
+	float4 stateRight = SAMPLE_RIGHT(HeightMap);
+	float4 stateTop = SAMPLE_TOP(HeightMap);
+	float4 stateBottom = SAMPLE_BOTTOM(HeightMap);
+
+	float terrainHeight = TERRAIN_HEIGHT(state);
+	float waterHeight = WATER_HEIGHT(state);
+
+	// Flow simulation using shallow-water model. Computation of the velocity field and water height changes.
+	// Sample flux
+	float4 outputFlux = UNPACK(SAMPLE_CURRENT(FluxMap));
+
+	// Overall height difference in each direction
+	float4 heightDifference = FULL_HEIGHT(state) - float4(
+		FULL_HEIGHT(stateLeft),
+		FULL_HEIGHT(stateRight),
+		FULL_HEIGHT(stateTop),
+		FULL_HEIGHT(stateBottom));
+
+	// Output flux	
+	outputFlux = max(0, outputFlux + _TimeDelta * _Gravity * _PipeArea * heightDifference / _PipeLength);
+
+	/*
+		Rescale flux
+		The total outflow should not exceed the total amount
+		of the water in the given cell.If the calculated value is
+		larger than the current amount in the given cell, then flux will
+		be scaled down with an appropriate factor
+	*/
+	outputFlux *= min(1, waterHeight * _CellSize.x * _CellSize.y / (SUM_COMPS(outputFlux) * _TimeDelta));
+
+	// Boundaries				
+	/*
+	if (id.x == 0) LDIR(outputFlux) = 0;
+	if (id.y == 0) BDIR(outputFlux) = 0;
+	if (id.x == 255) RDIR(outputFlux) = 0;
+	if (id.y == 255) TDIR(outputFlux) = 0;	
+	*/
+	// Write new flux to the FluxMap
+	SAMPLE_CURRENT(FluxMap) = outputFlux;
+}
+
+[numthreads(8, 8, 1)]
+void FluxApply(uint3 id : SV_DispatchThreadID)
+{
+	float4 state = SAMPLE_CURRENT(HeightMap);
+	float4 outputFlux = SAMPLE_CURRENT(FluxMap);
+	float4 inputFlux = float4(
+		RDIR(SAMPLE_LEFT(FluxMap)),
+		LDIR(SAMPLE_RIGHT(FluxMap)),
+		BDIR(SAMPLE_TOP(FluxMap)),
+		TDIR(SAMPLE_BOTTOM(FluxMap)));
+
+	// Water surface and velocity field update
+	// volume is changing by amount on incoming fluid volume minus outgoing
+	float volumeDelta = SUM_COMPS(inputFlux) - SUM_COMPS(outputFlux);
+
+	// Then, we update the water height in the current (x, y) cell:
+	WATER_HEIGHT(state) += _TimeDelta * volumeDelta / (_CellSize.x * _CellSize.y);	
+
+	// Write new state to the HeightMap
+	SAMPLE_CURRENT(HeightMap) = state;
+
+	// Write new velocity from flux to the VelocityMap
+	SAMPLE_CURRENT(VelocityMap) = float2(
+		0.5 * (LDIR(inputFlux) - LDIR(outputFlux) + RDIR(outputFlux) - RDIR(inputFlux)),
+		0.5 * (BDIR(inputFlux) - BDIR(outputFlux) + TDIR(outputFlux) - TDIR(inputFlux)));	
+}
+
+[numthreads(8, 8, 1)]
+void HydraulicErosion(uint3 id : SV_DispatchThreadID)
+{	
+	// Sample the heighmap (state map)
+	float4 state = SAMPLE_CURRENT(HeightMap);
+	float4 stateLeft = SAMPLE_LEFT(HeightMap);
+	float4 stateRight = SAMPLE_RIGHT(HeightMap);
+	float4 stateTop = SAMPLE_TOP(HeightMap);
+	float4 stateBottom = SAMPLE_BOTTOM(HeightMap);
+	float2 velocity = SAMPLE_CURRENT(VelocityMap);
+	
+	// 3. Erosion and deposition	
+	float dHx = abs(TERRAIN_HEIGHT(stateRight) - TERRAIN_HEIGHT(stateLeft)); // *20;
+	float dHy = abs(TERRAIN_HEIGHT(stateTop) - TERRAIN_HEIGHT(stateBottom)); // * 20;
+
+	float sinTiltAngle = 0.5 * dHx / sqrt(4 * _CellSize.x * _CellSize.x + dHx * dHx);
+	sinTiltAngle += 0.5 * dHy / sqrt(4 * _CellSize.y * _CellSize.y + dHy * dHy);
+
+	// Erosion limiting factor
+	float lmax = saturate(1 - (_MaxErosionDepth - WATER_HEIGHT(state)) / _MaxErosionDepth);
+
+	float sedimentTransportCapacity = _SedimentCapacity * length(velocity) * min(sinTiltAngle, 0.05) * lmax;	
+
+	if (SEDIMENT(state) < sedimentTransportCapacity)
+	{
+		float mod = _TimeDelta * _SuspensionRate * HARDNESS(state) * (sedimentTransportCapacity - SEDIMENT(state));
+		TERRAIN_HEIGHT(state) = TERRAIN_HEIGHT(state);
+		SEDIMENT(state) += mod;
+		WATER_HEIGHT(state) += mod;
+	}
+	else
+	{
+		float mod = _TimeDelta * _DepositionRate * (SEDIMENT(state) - sedimentTransportCapacity);
+		TERRAIN_HEIGHT(state) += mod;
+		SEDIMENT(state) -= mod;
+		WATER_HEIGHT(state) -= mod;
+	}	
+
+	// 5. Water evaporation.
+	WATER_HEIGHT(state) *= 1 - _Evaporation * _TimeDelta;
+	 
+	HARDNESS(state) = HARDNESS(state) - _TimeDelta * _SedimentSofteningRate * _SuspensionRate * (SEDIMENT(state) - sedimentTransportCapacity);
+
+	HARDNESS(state) = clamp(HARDNESS(state), 0.1, 1);
+	SAMPLE_CURRENT(HeightMap) = max(0, state);	
+}
+
+[numthreads(8, 8, 1)]
+void SedimentAdvection(uint3 id : SV_DispatchThreadID)
+{
+	float4 state = SAMPLE_CURRENT(HeightMap);
+	float2 velocity = SAMPLE_CURRENT(VelocityMap); 
+
+	// Sediment advection
+	SEDIMENT(state) = SEDIMENT(SampleBilinear(HeightMap, id.xy - velocity * _TimeDelta));
+
+	// Write heightmap
+	SAMPLE_CURRENT(HeightMap) = state;
+}
+
+
+[numthreads(8, 8, 1)]
+void ThermalErosion(uint3 id : SV_DispatchThreadID)
+{
+	float4 state = SAMPLE_CURRENT(HeightMap);	
+
+	// Adjacent
+	float h1 = TERRAIN_HEIGHT(SAMPLE_LEFT(HeightMap));
+	float h2 = TERRAIN_HEIGHT(SAMPLE_RIGHT(HeightMap));
+	float h3 = TERRAIN_HEIGHT(SAMPLE_TOP(HeightMap));
+	float h4 = TERRAIN_HEIGHT(SAMPLE_BOTTOM(HeightMap));
+	
+	// Diagonal
+	float h5 = TERRAIN_HEIGHT(SAMPLE_OFFSET(HeightMap, -1, -1));
+	float h6 = TERRAIN_HEIGHT(SAMPLE_OFFSET(HeightMap, -1,  1));
+	float h7 = TERRAIN_HEIGHT(SAMPLE_OFFSET(HeightMap,  1,  1));
+	float h8 = TERRAIN_HEIGHT(SAMPLE_OFFSET(HeightMap,  1, -1));
+	
+	float minNeighborHeight = min(h1, min(h2, min(h3, min(h4, min(h5, min(h6, min(h7, h8)))))));
+	
+	// TODO
+}
