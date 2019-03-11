@@ -78,22 +78,23 @@ namespace Assets.Scripts
         public SimulationSettings Settings;
 
         // Computation stuff
-        // State texture
-        // R - surface height  [0, 1]
-        // G - water over surface height [0, 1]
-        // B - Suspended sediment amount [0, 1]
+        // State texture ARGBFloat
+        // R - surface height  [0, +inf]
+        // G - water over surface height [0, +inf]
+        // B - Suspended sediment amount [0, +inf]
+        // A - Hardness of the surface [0, 1]
         private RenderTexture _stateTexture;
 
-        // Flux-field texture
-        // R - flux to the left cell
-        // G - flux to the right cell
-        // B - flux to the top cell
-        // A - flux to the bottom cell
+        // Output Flux-field texture
+        // R - flux to the left cell [0, +inf]
+        // G - flux to the right cell [0, +inf]
+        // B - flux to the top cell [0, +inf]
+        // A - flux to the bottom cell [0, +inf]
         private RenderTexture _fluxTexture;
 
         // Velocity texture
-        // R - X-velocity
-        // G - Y-velocity
+        // R - X-velocity [-inf, +inf]
+        // G - Y-velocity [-inf, +inf]
         private RenderTexture _velocityTexture;
 
         private readonly string[] _kernelNames = new string[] {
