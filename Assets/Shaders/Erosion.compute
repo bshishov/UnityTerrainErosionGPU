@@ -142,11 +142,12 @@ void FluxComputation(uint3 id : SV_DispatchThreadID)
 	outputFlux *= min(1, waterHeight * _CellSize.x * _CellSize.y / (SUM_COMPS(outputFlux) * _TimeDelta));
 
 	// Boundaries (uncomment thisif you want water to bounce of boundaries)					
+	/*
 	if (id.x == 0) LDIR(outputFlux) = 0;
 	if (id.y == 0) BDIR(outputFlux) = 0;
 	if (id.x == 255) RDIR(outputFlux) = 0;
 	if (id.y == 255) TDIR(outputFlux) = 0;	
-
+	*/
 	// Write new flux to the FluxMap
 	CURRENT_SAMPLE(FluxMap) = max(0, outputFlux);
 }

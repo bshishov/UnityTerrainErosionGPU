@@ -308,7 +308,7 @@ MonoBehaviour:
   Water: {fileID: 1901543751}
   ErosionComputeShader: {fileID: 7200000, guid: fcfc55914f9fdb646be1044044c2d042,
     type: 3}
-  InitialState: {fileID: 2800000, guid: 85ba6d31d0a40844abd17d90bea3cd6b, type: 3}
+  InitialState: {fileID: 2800000, guid: 43149b43056f9c340b49f9a408fc3284, type: 3}
   InitHeightmap: {fileID: 2100000, guid: a1079684b02cda94a9a601a811134170, type: 2}
   Width: 256
   Height: 256

@@ -4,6 +4,7 @@
     {
         _MainTex ("Texture", 2D) = "white" {}
 		_Scale("Scale", float) = 1
+		_Bias("Bias", float) = 0
     }
     SubShader
     {
@@ -41,17 +42,23 @@
             sampler2D _MainTex;
 			float2 _MainTex_TexelSize;
 			float _Scale;
+			float _Bias;
 
             fixed4 frag (v2f i) : SV_Target
             {
                 float4 col = tex2D(_MainTex, i.uv);
-				//float4 col = float4(1, 0, 0, 1);
-				//col.r = i.uv.x + i.uv.y;				
                 
+				// Terrain height				
+				col.r = max(0, col.r * _Scale + _Bias);
+
+				// Water height
+				col.g = 0;
+
+				// Suspended sediment
+				col.b = 0;
+				
 				// Hardness
-				col.a = saturate(0.2 + col.r * 0.8);
-				col.rg *= _Scale;
-				col.r += 20;				
+				col.a = saturate(0.2 + col.r * 0.8); 				
 				
                 return col;
             }
