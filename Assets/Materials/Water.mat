@@ -62,6 +62,7 @@ Material:
     m_Floats:
     - _BumpScale: 1
     - _Cutoff: 0.5
+    - _DepthDecay: 0.07
     - _DetailNormalMapScale: 1
     - _DstBlend: 0
     - _GlossMapScale: 1
@@ -69,10 +70,10 @@ Material:
     - _GlossyReflections: 1
     - _Metallic: 0
     - _Mode: 0
-    - _NormalStrength: 5
+    - _NormalStrength: 8.4
     - _OcclusionStrength: 1
     - _Parallax: 0.02
-    - _SampleSize: 0.00390625
+    - _SampleSize: 0.0078125
     - _Smoothness: 1
     - _SmoothnessTextureChannel: 0
     - _SpecularHighlights: 1

@@ -1,6 +1,8 @@
 # UnityTerrainErosionGPU
 Hydraulic and thermal erosion implement in Unity using compute shaders.
 
+![UnityTerrainErosionGPU](https://raw.githubusercontent.com/bshishov/UnityTerrainErosionGPU/master/Resources/screen1.png)
+ 
 This is an example implementation of hydraulic and thermal erosion with shallow water equations. My initial motivation was to implement a game mechanic like in the [From Dust](https://en.wikipedia.org/wiki/From_Dust) game.
 
 ## How it works
@@ -10,7 +12,7 @@ I will explain it later in details... :)
  - `Shaders`
    - [`Shaders/Erosion.compute`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/Erosion.compute) - all computational stuff happening there in form of separate compute kernels (functions) acting like passes and responsible for different things. Look through that file if you are interested in the actual algorithm implementation.
    - [`Shaders/Water.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/Water.shader) - Surface shader for rendering water plane. In vertex shader vertex positions are updated from state texture and normals are computed. It has basic lighting and alpha decay depending on depth.
-   - [`Shaders/Surface.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/Surface.shader) - A surface shader to render the terrain surface. In vertex shader vertex positions are updated from state texture and normals are computed.
+   - [`Shaders/Surface.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/Surface.shader) - A lit shader to render the terrain surface. In vertex shader vertex positions are updated from state texture and normals are computed.
    - [`Shaders/InitHeightmap.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/InitHeightmap.shader) - A special shader to initialize initial state from common grayscale heightmap texture. Since state texture is a float texture and operates with values higher than 1 the original heightmap texture should be scaled. This shader is used in the special material used in `CustomTerrain.cs`.
  - [`Scripts/CustomTerrain.cs`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Scripts/CustomTerrain.cs) - main Monobehavior responsible for mesh creation, compute shader setup, dispatching computation to the GPU, texture creation and parameter sharing.
 

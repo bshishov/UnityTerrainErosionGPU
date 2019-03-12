@@ -1,8 +1,9 @@
-﻿Shader "Custom/InitHeightmap"
+﻿Shader "Custom/InitHeightMap"
 {
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
+		_SeaLevel("SeaLevel", float) = 0
 		_Scale("Scale", float) = 1
 		_Bias("Bias", float) = 0
     }
@@ -43,6 +44,7 @@
 			float2 _MainTex_TexelSize;
 			float _Scale;
 			float _Bias;
+			float _SeaLevel;
 
             fixed4 frag (v2f i) : SV_Target
             {
@@ -52,7 +54,7 @@
 				col.r = max(0, col.r * _Scale + _Bias);
 
 				// Water height
-				col.g = 0;
+				col.g = max(0, _SeaLevel - col.r);
 
 				// Suspended sediment
 				col.b = 0;

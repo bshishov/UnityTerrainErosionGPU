@@ -2,12 +2,14 @@
 	Properties{
 		_MainTex("Texture", 2D) = "white" {}
 		_Color("Color", Color) = (0, 0, 1, 0.8)
-		_StateTex("State", 2D) = "black" {}
+		[NoScaleOffset] _StateTex("State", 2D) = "black" {}
 		_NormalStrength("NormalStrength", Range(0.1, 100)) = 0.5
 		_SampleSize("Sample Size", Range(0.001, 0.1)) = 0.01		
 		_Metallic("Metallic", Range(0, 1)) = 0.5
 		_Smoothness("Smoothness", Range(0, 1)) = 1
+		_DepthDecay("DepthDecay", float) = 1
 	}
+		
 		SubShader{
 			Tags { "RenderType" = "Transparent" "Queue"="Transparent" }			
 			LOD 200
@@ -15,6 +17,8 @@
 			ZWrite On
 
 			CGPROGRAM
+			#include "UnityCG.cginc"
+
 			#pragma surface surf Standard vertex:vert alpha:blend
 			#pragma target 3.0
 			struct Input {
@@ -35,6 +39,7 @@
 			half _Smoothness;
 			sampler2D _CameraDepthTexture;
 			float4 _CameraDepthTexture_TexelSize;
+			float _DepthDecay;
 
 			void vert(inout appdata_full v) {
 				float4 state = tex2Dlod(_StateTex, float4(v.texcoord.x, v.texcoord.y, 0, 0));
@@ -53,6 +58,9 @@
 			}
 
 			void surf(Input IN, inout SurfaceOutputStandard  o) {
+				// Brush
+				float brushPresence = saturate(sign(abs(_InputControls.z) - length(IN.uv_MainTex - _InputControls.xy)));
+
 				float2 uv = IN.screenPos.xy / IN.screenPos.w;
 				#if UNITY_UV_STARTS_AT_TOP
 					if (_CameraDepthTexture_TexelSize.y < 0) {
@@ -63,30 +71,27 @@
 				float backgroundDepth = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv));
 				float surfaceDepth = UNITY_Z_0_FAR_FROM_CLIPSPACE(IN.screenPos.z);
 				float depthDifference = (backgroundDepth - surfaceDepth);
+				
 
 				float4 state = tex2D(_StateTex, IN.uv_MainTex);
-				float d = saturate(10 * state.g);
-				//clip(state.g - 0.01);
+				clip(state.g - 0.08 + brushPresence);
 
 				o.Metallic = _Metallic;
 				o.Smoothness = _Smoothness;
-				//o.Alpha = saturate(depthDifference / 5 + 0.1);
-				o.Alpha = _Color.a * d;
+				o.Alpha = saturate(clamp(depthDifference * _DepthDecay * 4, 0, 0.8) + 0.4 * saturate(depthDifference * _DepthDecay * 0.5));
+				//o.Alpha = _Color.a * saturate(2 * state.g);
 				//o.Albedo = tex2D(_MainTex, IN.uv_MainTex).rgb * _Color.rgb * (1 - d * d * 0.1);
 				//o.Albedo = (o.Normal + 1) * 0.5;
-				o.Albedo = _Color.rgb * (1 - clamp(depthDifference / 20, 0, 0.6));
+				o.Albedo = _Color.rgb * (1 - clamp(depthDifference * _DepthDecay, 0, 0.6));
 
-
-				// Brush
-				float dd = length(IN.uv_MainTex - _InputControls.xy);
-				float k = saturate(sign(abs(_InputControls.z) - dd));
-				//float x = dd / _InputControls.z;
-				//float k = saturate(1 - pow(x, _InputControls.w));
-				o.Alpha = max(o.Alpha, k);
-				o.Albedo = (1 - k) * o.Albedo + k * float3(1, 0, 0);
+				//o.Alpha = 1;
+				//o.Albedo = saturate(1 - depthDifference * _DepthDecay);				
+				
+				o.Alpha = max(o.Alpha, brushPresence);
+				o.Albedo = (1 - brushPresence) * o.Albedo + brushPresence * float3(1, 0, 0);
 				
 			}
 			ENDCG
 		}
-		Fallback "Diffuse"
+		Fallback "Diffuse"		
 }

@@ -46,6 +46,8 @@ RWTexture2D<float2> VelocityMap;
 RWTexture2D<float4> FluxMap;
 
 // Fluid simulation propertis
+uint _Width;
+uint _Height;
 float _TimeDelta;
 float _PipeArea;
 float _Gravity;
@@ -89,7 +91,7 @@ void RainAndControl(uint3 id : SV_DispatchThreadID)
 	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate;	
 
 	// Water-drawing brush
-	float2 uv = (float2)id.xy / 256;
+	float2 uv = float2((float)id.x / _Width, (float)id.y / _Height);
 	float2 dist = uv - _InputControls.xy;
 	if (length(dist) < abs(_InputControls.z)) 
 	{
@@ -141,13 +143,12 @@ void FluxComputation(uint3 id : SV_DispatchThreadID)
 	*/
 	outputFlux *= min(1, waterHeight * _CellSize.x * _CellSize.y / (SUM_COMPS(outputFlux) * _TimeDelta));
 
-	// Boundaries (uncomment thisif you want water to bounce of boundaries)					
-	/*
+	// Boundaries (uncomment thisif you want water to bounce of boundaries)						
 	if (id.x == 0) LDIR(outputFlux) = 0;
 	if (id.y == 0) BDIR(outputFlux) = 0;
-	if (id.x == 255) RDIR(outputFlux) = 0;
-	if (id.y == 255) TDIR(outputFlux) = 0;	
-	*/
+	if (id.x == _Width - 1) RDIR(outputFlux) = 0;
+	if (id.y == _Height - 1) TDIR(outputFlux) = 0;	
+
 	// Write new flux to the FluxMap
 	CURRENT_SAMPLE(FluxMap) = max(0, outputFlux);
 }
@@ -208,7 +209,8 @@ void HydraulicErosion(uint3 id : SV_DispatchThreadID)
 
 	if (SEDIMENT(state) < sedimentTransportCapacity)
 	{
-		float mod = _TimeDelta * _SuspensionRate * HARDNESS(state) * (sedimentTransportCapacity - SEDIMENT(state));
+		//float mod = _TimeDelta * _SuspensionRate * HARDNESS(state) * (sedimentTransportCapacity - SEDIMENT(state));
+		float mod = _TimeDelta * _SuspensionRate * (sedimentTransportCapacity - SEDIMENT(state));
 		TERRAIN_HEIGHT(state) = TERRAIN_HEIGHT(state);
 		SEDIMENT(state) += mod;
 		WATER_HEIGHT(state) += mod;

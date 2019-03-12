@@ -12,21 +12,15 @@ namespace Assets.Scripts
         public GameObject Water;
         public ComputeShader ErosionComputeShader;
         public Texture2D InitialState;
-        public Material InitHeightmap;
+        public Material InitHeightMap;
 
         [Range(32, 1024)]
         public int Width = 256;
         [Range(32, 1024)]
         public int Height = 256;
-
-        [Range(0f, 1f)]
-        public float ControlsX = 0.5f;
-        [Range(0f, 1f)]
-        public float ControlsY = 0.5f;
-        [Range(-0.2f, 0.2f)]
-        public float ControlsRadius = 0.1f;
-        [Range(-1000f, 1000f)]
-        public float ControlsAmount = 0f;
+        
+        
+        public float BrushAmount = 0f;
 
         [Serializable]
         public class SimulationSettings
@@ -37,7 +31,7 @@ namespace Assets.Scripts
             [Range(0, 0.05f)]
             public float RainRate = 0.012f;
 
-            [Range(0, 0.05f)]
+            [Range(0, 1f)]
             public float Evaporation = 0.015f;
 
             [Range(0.001f, 600000000)]
@@ -97,7 +91,7 @@ namespace Assets.Scripts
         // G - Y-velocity [-inf, +inf]
         private RenderTexture _velocityTexture;
 
-        private readonly string[] _kernelNames = new string[] {
+        private readonly string[] _kernelNames = {
             "RainAndControl",
             "FluxComputation",
             "FluxApply",
@@ -108,7 +102,6 @@ namespace Assets.Scripts
         private uint _threadsPerGroupX;
         private uint _threadsPerGroupY;
         private uint _threadsPerGroupZ;
-        private Plane _floor = new Plane(Vector3.up, Vector3.zero);
 
         // Rendering stuff
         private const string StateTextureKey = "_StateTex";
@@ -119,6 +112,10 @@ namespace Assets.Scripts
         private MeshFilter _waterMeshFilter;
         private Material _waterMaterial;
 
+        // Brush
+        private Plane _floor = new Plane(Vector3.up, Vector3.zero);
+        private float _controlsRadius = 0.1f;
+
         void Start()
         {
             if (Water == null)
@@ -127,10 +124,12 @@ namespace Assets.Scripts
             // Gather necessary components
             _surfaceMeshRenderer = GetComponent<MeshRenderer>();
             _surfaceMeshFilter = GetComponent<MeshFilter>();
+            _surfaceMaterial = _surfaceMeshRenderer.material;
             _waterMeshFilter = Water.GetComponent<MeshFilter>();
             _waterMeshRenderer = Water.GetComponent<MeshRenderer>();
-            _surfaceMaterial = _surfaceMeshRenderer.material;
             _waterMaterial = _waterMeshRenderer.material;
+
+            Camera.main.depthTextureMode = DepthTextureMode.Depth;
 
             // Set everything up
             Initialize();
@@ -138,32 +137,32 @@ namespace Assets.Scripts
         
         void Update()
         {
-            ControlsRadius += Input.mouseScrollDelta.y * Time.deltaTime;
+            // Controls
+            _controlsRadius = Mathf.Clamp01(_controlsRadius + Input.mouseScrollDelta.y * Time.deltaTime);
 
             var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-            var enter = 0f;
             var amount = 0f;
-            if (_floor.Raycast(ray, out enter))
+            var brushX = 0f;
+            var brushY = 0f;
+
+            if (_floor.Raycast(ray, out var enter))
             {
                 var hitPoint = ray.GetPoint(enter);
-                ControlsX = hitPoint.x / Width;
-                ControlsY = hitPoint.z / Height;
+                brushX = hitPoint.x / Width;
+                brushY = hitPoint.z / Height;
 
                 if (Input.GetMouseButton(0))
-                    amount = ControlsAmount;
-
-                if (Input.GetMouseButton(1))
-                    amount = -ControlsAmount;
+                    amount = BrushAmount;
             }
             else
             {
                 amount = 0f;
             }
-            
 
-            var inputControls = new Vector4(ControlsX, ControlsY, ControlsRadius, amount);
+            var inputControls = new Vector4(brushX, brushY, _controlsRadius, amount);
             Shader.SetGlobalVector("_InputControls", inputControls);
 
+            // Compute dispatch
             if (ErosionComputeShader != null)
             {
                 if (Settings != null)
@@ -186,6 +185,7 @@ namespace Assets.Scripts
                     ErosionComputeShader.SetVector("_InputControls", inputControls);
                 }
 
+                // Dispatch all passes sequentially
                 foreach (var kernel in _kernels)
                 {
                     ErosionComputeShader.Dispatch(kernel,
@@ -244,17 +244,12 @@ namespace Assets.Scripts
 
             if (InitialState != null)
             {
-                if (InitHeightmap != null)
-                    Graphics.Blit(InitialState, _stateTexture, InitHeightmap);
+                if (InitHeightMap != null)
+                    Graphics.Blit(InitialState, _stateTexture, InitHeightMap);
                 else
                     Graphics.Blit(InitialState, _stateTexture);
             }
-
-            // Set textures for debug visualization
-            Debugger.Instance.Display("HeightMap", _stateTexture);
-            Debugger.Instance.Display("FluxMap", _fluxTexture);
-            Debugger.Instance.Display("VelocityMap", _velocityTexture);
-
+            
             // Setup computation shader
             if (ErosionComputeShader != null)
             {
@@ -265,14 +260,25 @@ namespace Assets.Scripts
                     var kernel = ErosionComputeShader.FindKernel(kernelName);;
                     _kernels[i++] = kernel;
 
+                    // Set all textures
                     ErosionComputeShader.SetTexture(kernel, "HeightMap", _stateTexture);
                     ErosionComputeShader.SetTexture(kernel, "VelocityMap", _velocityTexture);
                     ErosionComputeShader.SetTexture(kernel, "FluxMap", _fluxTexture);
                 }
                 
+                ErosionComputeShader.SetInt("_Width", Width);
+                ErosionComputeShader.SetInt("_Height", Height);
                 ErosionComputeShader.GetKernelThreadGroupSizes(_kernels[0], out _threadsPerGroupX, out _threadsPerGroupY, out _threadsPerGroupZ);
                 
             }
+
+            // Debug information
+            Debugger.Instance.Display("Width", Width);
+            Debugger.Instance.Display("Height", Height);
+            Debugger.Instance.Display("HeightMap", _stateTexture);
+            Debugger.Instance.Display("FluxMap", _fluxTexture);
+            Debugger.Instance.Display("VelocityMap", _velocityTexture);
+
 
             /* ========= Setup Rendering =========== */
             // Assign state texture to materials
