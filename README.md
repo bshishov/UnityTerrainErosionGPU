@@ -5,6 +5,13 @@ Hydraulic and thermal erosion implement in Unity using compute shaders.
  
 This is an example implementation of hydraulic and thermal erosion with shallow water equations. My initial motivation was to implement a game mechanic like in the [From Dust](https://en.wikipedia.org/wiki/From_Dust) game.
 
+
+## Disclaimer
+This project is still in progress and right now only water simulation works as intended. Hydraulic erosion is very unstable in the current state and requires a lot more parameter tweaking and revisiting the actual implementation. Thermal erosion is not implemented yet but it will come shortly. 
+
+## Demo
+Just run `Main` Scene and use mouse to draw water. To remove water change `BrushAmount` property in the `CustomTerrain` component to the negative value.
+
 ## How it works
 I will explain it later in details... :)
 
