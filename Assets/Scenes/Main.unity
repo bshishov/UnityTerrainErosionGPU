@@ -161,6 +161,24 @@ Light:
     m_Bias: 0.05
     m_NormalBias: 0.4
     m_NearPlane: 0.2
+    m_CullingMatrixOverride:
+      e00: 1
+      e01: 0
+      e02: 0
+      e03: 0
+      e10: 0
+      e11: 1
+      e12: 0
+      e13: 0
+      e20: 0
+      e21: 0
+      e22: 1
+      e23: 0
+      e30: 0
+      e31: 0
+      e32: 0
+      e33: 1
+    m_UseCullingMatrixOverride: 0
   m_Cookie: {fileID: 0}
   m_DrawHalo: 0
   m_Flare: {fileID: 0}
@@ -168,12 +186,15 @@ Light:
   m_CullingMask:
     serializedVersion: 2
     m_Bits: 4294967295
+  m_RenderingLayerMask: 1
   m_Lightmapping: 1
   m_LightShadowCasterMode: 0
   m_AreaSize: {x: 1, y: 1}
   m_BounceIntensity: 1
   m_ColorTemperature: 6570
   m_UseColorTemperature: 0
+  m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
+  m_UseBoundingSphereOverride: 0
   m_ShadowRadius: 0
   m_ShadowAngle: 0
 --- !u!4 &705507995
@@ -283,7 +304,6 @@ MonoBehaviour:
   m_GameObject: {fileID: 963194225}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_GeneratorAsset: {fileID: 0}
   m_Script: {fileID: 11500000, guid: d6b0207ed7914c74191269f3bfb16d38, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
@@ -321,7 +341,6 @@ MonoBehaviour:
   m_GameObject: {fileID: 1293415288}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_GeneratorAsset: {fileID: 0}
   m_Script: {fileID: 11500000, guid: 9dc03fd489a1eb04a9ae808ab1d54948, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
@@ -335,20 +354,21 @@ MonoBehaviour:
   BrushAmount: 10
   Settings:
     TimeDelta: 0.02
+    PipeLength: 1
+    CellSize: {x: 1, y: 1}
     RainRate: 0
-    Evaporation: 0.136
+    Evaporation: 0
     PipeArea: 1
     Gravity: 9.81
     SedimentCapacity: 0.1
-    ThermalErosionRate: 0.15
-    SoilSuspensionRate: 2
-    SedimentDepositionRate: 3
+    SoilSuspensionRate: 1
+    SedimentDepositionRate: 1
     SedimentSofteningRate: 5
     MaximalErosionDepth: 1
+    ThermalErosionTimeScale: 20
+    ThermalErosionRate: 1
     TalusAngleTangentCoeff: 0.8
-    TalusAngleTangentBias: 0.1
-    PipeLength: 1
-    CellSize: {x: 1, y: 1}
+    TalusAngleTangentBias: 0.2
 --- !u!33 &1293415290
 MeshFilter:
   m_ObjectHideFlags: 0

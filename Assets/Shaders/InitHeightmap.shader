@@ -60,7 +60,7 @@
 				col.b = 0;
 				
 				// Hardness
-				col.a = saturate(0.2 + col.r * 0.8); 				
+				col.a = 1; // saturate(0.2 + col.r * 0.8);
 				
                 return col;
             }

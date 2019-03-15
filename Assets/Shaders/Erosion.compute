@@ -1,35 +1,42 @@
-﻿#pragma kernel RainAndControl
+﻿// List of all separate kernels to be dispatched from CustomTerrain.cs
+#pragma kernel RainAndControl
 #pragma kernel FluxComputation
 #pragma kernel FluxApply
 #pragma kernel HydraulicErosion
 #pragma kernel SedimentAdvection
+#pragma kernel ThermalErosion
+#pragma kernel ApplyThermalErosion
 
 // Number of threads in each kernel
 #define NUMTHREADS numthreads(8, 8, 1)
 
-// Component encodings
+// Directional maps channel semantics
+// It means that for textures with 4-directional data (like flux)
+// value for the each direction stored in a separate channel
+// For example, LEFT is stored in RED channel
 #define LDIR(col) (col.r)
 #define RDIR(col) (col.g)
 #define TDIR(col) (col.b)
 #define BDIR(col) (col.a)
 
-// Sampling macro
-#define SAMPLE_WITH_OFFSET(tex, x, y) ((tex[id.xy + uint2(x, y)]))
-#define CURRENT_SAMPLE(tex) (tex[id.xy])
-#define LEFT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, -1, 0))
-#define RIGHT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 1, 0))
-#define TOP_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, 1))
-#define BOTTOM_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, -1))
-
-// Maps semantics
+// State channel semantics
 #define TERRAIN_HEIGHT(col) (col.r)
 #define WATER_HEIGHT(col) (col.g)
 #define SEDIMENT(col) (col.b)
 #define HARDNESS(col) (col.a)
 #define FULL_HEIGHT(col) ((TERRAIN_HEIGHT(col) + WATER_HEIGHT(col)))
 
+// Velocity-map channel semantics
 #define VELOCITY_X(col) (col.r)
 #define VELOCITY_Y(col) (col.g)
+
+// Sampling macro, just to simplify the code a bit
+#define SAMPLE_WITH_OFFSET(tex, x, y) ((tex[id.xy + uint2(x, y)]))
+#define CURRENT_SAMPLE(tex) (tex[id.xy])
+#define LEFT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, -1, 0))
+#define RIGHT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 1, 0))
+#define TOP_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, 1))
+#define BOTTOM_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, -1))
 
 #define SUM_COMPS(v) ((v.r + v.g + v.b + v.a))
 
@@ -42,8 +49,11 @@ RWTexture2D<float4> HeightMap;
 // Velocity field (R - velocity x, G - velocity y)
 RWTexture2D<float2> VelocityMap;
 
-// Flux field (R - left, G - right, B - top, A - bottom)
+// Water Flux field (R - left, G - right, B - top, A - bottom)
 RWTexture2D<float4> FluxMap;
+
+// Terrain Flux field (R - left, G - right, B - top, A - bottom)
+RWTexture2D<float4> TerrainFluxMap;
 
 // Fluid simulation propertis
 uint _Width;
@@ -63,6 +73,12 @@ float _MaxErosionDepth;
 float _SuspensionRate;
 float _DepositionRate; 
 float _SedimentSofteningRate;
+
+// Thermal erosion properties
+float _ThermalErosionTimeScale;
+float _ThermalErosionRate;
+float _TalusAngleTangentCoeff;
+float _TalusAngleTangentBias;
 
 float4 SampleBilinear(RWTexture2D<float4> tex, float2 uv)
 {
@@ -165,10 +181,11 @@ void FluxApply(uint3 id : SV_DispatchThreadID)
 		LDIR(RIGHT_SAMPLE(FluxMap)),
 		BDIR(TOP_SAMPLE(FluxMap)),
 		TDIR(BOTTOM_SAMPLE(FluxMap)));
+	float waterHeightBefore = WATER_HEIGHT(state);
 
 	// Water surface and velocity field update
 	// volume is changing by amount on incoming fluid volume minus outgoing
-	float volumeDelta = SUM_COMPS(inputFlux) - SUM_COMPS(outputFlux);
+	float volumeDelta = SUM_COMPS(inputFlux) - SUM_COMPS(outputFlux);	
 
 	// Then, we update the water height in the current (x, y) cell:
 	WATER_HEIGHT(state) += _TimeDelta * volumeDelta / (_CellSize.x * _CellSize.y);	
@@ -176,10 +193,11 @@ void FluxApply(uint3 id : SV_DispatchThreadID)
 	// Write new state to the HeightMap
 	CURRENT_SAMPLE(HeightMap) = state;
 
-	// Write new velocity from flux to the VelocityMap
+	// Compute new velocity from flux to the VelocityMap
 	CURRENT_SAMPLE(VelocityMap) = float2(
 		0.5 * (LDIR(inputFlux) - LDIR(outputFlux) + RDIR(outputFlux) - RDIR(inputFlux)),
-		0.5 * (BDIR(inputFlux) - BDIR(outputFlux) + TDIR(outputFlux) - TDIR(inputFlux)));	
+		0.5 * (BDIR(inputFlux) - BDIR(outputFlux) + TDIR(outputFlux) - TDIR(inputFlux)))
+		/ _PipeLength * 0.5 * (waterHeightBefore + WATER_HEIGHT(state));
 }
 
 
@@ -253,22 +271,90 @@ void SedimentAdvection(uint3 id : SV_DispatchThreadID)
 /* Pass 5. Terrain thermal erosion */
 [NUMTHREADS]
 void ThermalErosion(uint3 id : SV_DispatchThreadID)
-{
+{	
 	float4 state = CURRENT_SAMPLE(HeightMap);	
 
-	// Adjacent
-	float h1 = TERRAIN_HEIGHT(LEFT_SAMPLE(HeightMap));
-	float h2 = TERRAIN_HEIGHT(RIGHT_SAMPLE(HeightMap));
-	float h3 = TERRAIN_HEIGHT(TOP_SAMPLE(HeightMap));
-	float h4 = TERRAIN_HEIGHT(BOTTOM_SAMPLE(HeightMap));
+	// Neighbors
+	float4 neighborHeights = float4(
+		TERRAIN_HEIGHT(LEFT_SAMPLE(HeightMap)),
+		TERRAIN_HEIGHT(RIGHT_SAMPLE(HeightMap)),
+		TERRAIN_HEIGHT(TOP_SAMPLE(HeightMap)),
+		TERRAIN_HEIGHT(BOTTOM_SAMPLE(HeightMap))
+	);
+
+	// Overall height difference in each direction
+	float4 heightDifference = max(0, TERRAIN_HEIGHT(state) - neighborHeights);
+	float maxHeightDifference = max(max(heightDifference.x, heightDifference.y), max(heightDifference.z, heightDifference.w));
+
+	// First, we need to compute the amount of terrain to be moved from the current cell
+	// It is capped at [Area * MaxHeightDifference / 2] because it will oscillate if we will allow 
+	// more mass to flow per update
+	// ErosionRate and Hardness are just control variables to reduce the erosion where and when needed
+	float volumeToBeMoved = _CellSize.x * _CellSize.y * maxHeightDifference * 0.5 
+		* _ThermalErosionRate * HARDNESS(state);
 	
-	// Diagonal
-	float h5 = TERRAIN_HEIGHT(SAMPLE_WITH_OFFSET(HeightMap, -1, -1));
-	float h6 = TERRAIN_HEIGHT(SAMPLE_WITH_OFFSET(HeightMap, -1,  1));
-	float h7 = TERRAIN_HEIGHT(SAMPLE_WITH_OFFSET(HeightMap,  1,  1));
-	float h8 = TERRAIN_HEIGHT(SAMPLE_WITH_OFFSET(HeightMap,  1, -1));
+	// Compute angles for every neighbor
+	// Actually a tan(angle)
+	// NOTE: If Cellsize.X and _Cellsize.y are different 
+	// you need to use .x for first 2 components and .y for last 2
+	float4 tanAngle = heightDifference / _CellSize.x;
 	
-	float minNeighborHeight = min(h1, min(h2, min(h3, min(h4, min(h5, min(h6, min(h7, h8)))))));
+	// We need to define a threshold for the angle to identify in which direction the mass is falling
+	// It based on hardness of the material and some more control variables
+	float treshold = HARDNESS(state) * _TalusAngleTangentCoeff + _TalusAngleTangentBias;
 	
-	// TODO
+	// Next we need to set proportions that defines how much mass is transfered in each direction
+	// Some directions will not contribute because of not enough steep angles
+	// We are 
+	float4 k = 0;
+	
+	if (tanAngle.x > treshold)
+		k.x = heightDifference.x;
+
+	if (tanAngle.y > treshold)
+		k.y = heightDifference.y;
+
+	if (tanAngle.z > treshold)
+		k.z = heightDifference.z;
+
+	if (tanAngle.w > treshold)
+		k.w = heightDifference.w;	
+
+	// Output flux
+	float sumProportions = SUM_COMPS(k);
+	float4 outputFlux = 0;
+
+	if (sumProportions > 0)
+		outputFlux = volumeToBeMoved * k / sumProportions;
+		
+	// Boundaries (uncomment thisif you want water to bounce of boundaries)						
+	if (id.x == 0) LDIR(outputFlux) = 0;
+	if (id.y == 0) BDIR(outputFlux) = 0;
+	if (id.x == _Width - 1) RDIR(outputFlux) = 0;
+	if (id.y == _Height - 1) TDIR(outputFlux) = 0;	
+
+	CURRENT_SAMPLE(TerrainFluxMap) = outputFlux;
+}
+
+/* Pass 6. Apply thermal erosion */
+[NUMTHREADS]
+void ApplyThermalErosion(uint3 id : SV_DispatchThreadID)
+{
+	float4 state = CURRENT_SAMPLE(HeightMap);
+	float4 outputFlux = CURRENT_SAMPLE(TerrainFluxMap);
+	float4 inputFlux = float4(
+		RDIR(LEFT_SAMPLE(TerrainFluxMap)),
+		LDIR(RIGHT_SAMPLE(TerrainFluxMap)),
+		BDIR(TOP_SAMPLE(TerrainFluxMap)),
+		TDIR(BOTTOM_SAMPLE(TerrainFluxMap)));	
+	
+	// Volume is changing by amount on incoming mass minus outgoing mass
+	float volumeDelta = SUM_COMPS(inputFlux) - SUM_COMPS(outputFlux);
+
+	// Then, we update the terrain height in the current (x, y) cell
+	// min - is to prevent addind more mass than in flux
+	TERRAIN_HEIGHT(state) += min(1, _TimeDelta * _ThermalErosionTimeScale) * volumeDelta;
+
+	// Write new state to the HeightMap
+	CURRENT_SAMPLE(HeightMap) = state;
 }

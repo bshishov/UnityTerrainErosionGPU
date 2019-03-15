@@ -8,3 +8,11 @@ The following packages were updated:
   com.unity.collab-proxy from version 1.2.9 to 1.2.15
   com.unity.package-manager-ui from version 0.0.0-builtin to 2.1.1
   com.unity.timeline from version 0.0.0-builtin to 1.0.0
+
+=== Wed Mar 13 21:52:09 2019
+
+Packages were changed.
+Update Mode: updateDependencies
+
+The following packages were updated:
+  com.unity.analytics from version 3.2.2 to 3.3.2

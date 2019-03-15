@@ -18,8 +18,7 @@ namespace Assets.Scripts
         public int Width = 256;
         [Range(32, 1024)]
         public int Height = 256;
-        
-        
+
         public float BrushAmount = 0f;
 
         [Serializable]
@@ -28,24 +27,24 @@ namespace Assets.Scripts
             [Range(0f, 0.05f)]
             public float TimeDelta = 0.02f;
 
+            public float PipeLength = 1f / 256;
+            public Vector2 CellSize = new Vector2(1f / 256, 1f / 256);
+
             [Range(0, 0.05f)]
             public float RainRate = 0.012f;
 
             [Range(0, 1f)]
             public float Evaporation = 0.015f;
 
-            [Range(0.001f, 600000000)]
+            [Range(0.001f, 1000)]
             public float PipeArea = 20;
 
             [Range(0.1f, 20f)]
             public float Gravity = 9.81f;
 
-            [Header("Erosion")]
+            [Header("Hydraulic erosion")]
             [Range(0.1f, 3f)]
             public float SedimentCapacity = 1f;
-
-            [Range(0, 3f)]
-            public float ThermalErosionRate = 0.15f;
 
             [Range(0.1f, 2f)]
             public float SoilSuspensionRate = 0.5f;
@@ -59,14 +58,19 @@ namespace Assets.Scripts
             [Range(0f, 40f)]
             public float MaximalErosionDepth = 10f;
 
+            [Header("Thermal erosion")]
+            [Range(0, 1000f)]
+            public float ThermalErosionTimeScale = 1f;
+
+            [Range(0, 1f)]
+            public float ThermalErosionRate = 0.15f;
+
             [Range(0f, 1f)]
             public float TalusAngleTangentCoeff = 0.8f;
 
             [Range(0f, 1f)]
             public float TalusAngleTangentBias = 0.1f;
-
-            public float PipeLength = 1f / 256;
-            public Vector2 CellSize = new Vector2(1f / 256, 1f / 256);
+            
         }
         
         public SimulationSettings Settings;
@@ -79,25 +83,41 @@ namespace Assets.Scripts
         // A - Hardness of the surface [0, 1]
         private RenderTexture _stateTexture;
 
-        // Output Flux-field texture
+        // Output water flux-field texture
+        // represents how much water is OUTGOING in each direction
         // R - flux to the left cell [0, +inf]
         // G - flux to the right cell [0, +inf]
         // B - flux to the top cell [0, +inf]
         // A - flux to the bottom cell [0, +inf]
-        private RenderTexture _fluxTexture;
+        private RenderTexture _waterFluxTexture;
+
+        // Output terrain flux-field texture
+        // represents how much landmass is OUTGOING in each direction
+        // Used in thermal erosion process
+        // R - flux to the left cell [0, +inf]
+        // G - flux to the right cell [0, +inf]
+        // B - flux to the top cell [0, +inf]
+        // A - flux to the bottom cell [0, +inf]
+        private RenderTexture _terrainFluxTexture;
 
         // Velocity texture
         // R - X-velocity [-inf, +inf]
         // G - Y-velocity [-inf, +inf]
         private RenderTexture _velocityTexture;
 
+        // List of kernels in the compute shader to be dispatched
+        // Sequentially in this order
         private readonly string[] _kernelNames = {
             "RainAndControl",
             "FluxComputation",
             "FluxApply",
-            "HydraulicErosion",
-            "SedimentAdvection",
+            //"HydraulicErosion",
+            //"SedimentAdvection",
+            "ThermalErosion",
+            "ApplyThermalErosion"
         };
+
+        // Kernel-related data
         private int[] _kernels;
         private uint _threadsPerGroupX;
         private uint _threadsPerGroupY;
@@ -182,6 +202,12 @@ namespace Assets.Scripts
                     ErosionComputeShader.SetFloat("_DepositionRate", Settings.SedimentDepositionRate);
                     ErosionComputeShader.SetFloat("_SedimentSofteningRate", Settings.SedimentSofteningRate);
 
+                    // Thermal erosion
+                    ErosionComputeShader.SetFloat("_ThermalErosionRate", Settings.ThermalErosionRate);
+                    ErosionComputeShader.SetFloat("_TalusAngleTangentCoeff", Settings.TalusAngleTangentCoeff);
+                    ErosionComputeShader.SetFloat("_TalusAngleTangentBias", Settings.TalusAngleTangentBias);
+                    ErosionComputeShader.SetFloat("_ThermalErosionTimeScale", Settings.ThermalErosionTimeScale);
+
                     ErosionComputeShader.SetVector("_InputControls", inputControls);
                 }
 
@@ -203,8 +229,8 @@ namespace Assets.Scripts
             if (_stateTexture != null)
                 _stateTexture.Release();
 
-            if (_fluxTexture != null)
-                _fluxTexture.Release();
+            if (_waterFluxTexture != null)
+                _waterFluxTexture.Release();
 
             if (_velocityTexture != null)
                 _velocityTexture.Release();
@@ -218,26 +244,37 @@ namespace Assets.Scripts
             };
 
             // Initialize texture for storing flow
-            _fluxTexture = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat)
+            _waterFluxTexture = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat)
             {
                 enableRandomWrite = true,
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
 
+            // Initialize texture for storing flow for thermal erosion
+            _terrainFluxTexture = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat)
+            {
+                enableRandomWrite = true,
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Repeat
+            };
+
             // Velocity texture
             _velocityTexture = new RenderTexture(Width, Height, 0, RenderTextureFormat.RGFloat)
             {
                 enableRandomWrite = true,
-                filterMode = FilterMode.Bilinear,
+                filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp
             };
 
             if (!_stateTexture.IsCreated())
                 _stateTexture.Create();
 
-            if (!_fluxTexture.IsCreated())
-                _fluxTexture.Create();
+            if (!_waterFluxTexture.IsCreated())
+                _waterFluxTexture.Create();
+
+            if (!_terrainFluxTexture.IsCreated())
+                _terrainFluxTexture.Create();
 
             if (!_velocityTexture.IsCreated())
                 _velocityTexture.Create();
@@ -263,7 +300,8 @@ namespace Assets.Scripts
                     // Set all textures
                     ErosionComputeShader.SetTexture(kernel, "HeightMap", _stateTexture);
                     ErosionComputeShader.SetTexture(kernel, "VelocityMap", _velocityTexture);
-                    ErosionComputeShader.SetTexture(kernel, "FluxMap", _fluxTexture);
+                    ErosionComputeShader.SetTexture(kernel, "FluxMap", _waterFluxTexture);
+                    ErosionComputeShader.SetTexture(kernel, "TerrainFluxMap", _terrainFluxTexture);
                 }
                 
                 ErosionComputeShader.SetInt("_Width", Width);
@@ -276,7 +314,8 @@ namespace Assets.Scripts
             Debugger.Instance.Display("Width", Width);
             Debugger.Instance.Display("Height", Height);
             Debugger.Instance.Display("HeightMap", _stateTexture);
-            Debugger.Instance.Display("FluxMap", _fluxTexture);
+            Debugger.Instance.Display("FluxMap", _waterFluxTexture);
+            Debugger.Instance.Display("TerrainFluxMap", _terrainFluxTexture);
             Debugger.Instance.Display("VelocityMap", _velocityTexture);
 
 
