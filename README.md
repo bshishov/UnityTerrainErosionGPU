@@ -7,7 +7,7 @@ This is an example implementation of hydraulic and thermal erosion with shallow 
 
 
 ## Disclaimer
-This project is still in progress and right now only water simulation works as intended. Hydraulic erosion is very unstable in the current state and requires a lot more parameter tweaking and revisiting the actual implementation. Thermal erosion is not implemented yet but it will come shortly. 
+This project is still in progress. Hydraulic erosion requires a bit more parameter tweaking and revisiting the actual implementation. But overall it works.
 
 ## Demo
 Just run `Main` Scene and use mouse to draw water. To remove water change `BrushAmount` property in the `CustomTerrain` component to the negative value.
@@ -33,8 +33,6 @@ I will explain it later in details... :)
 ## TODO:
 - Better explanation of the implementation
 - More descriptive comments in code
-- Thermal erosion pipe model
-- Improve stability of hydraulic erosion
 - Quality of life:
   - Better editor - camera controls and better brush controls
   - Different initial state loaders (from terrain data, from 16bit textures, from `.raw`)
