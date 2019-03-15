@@ -196,8 +196,8 @@ void FluxApply(uint3 id : SV_DispatchThreadID)
 	// Compute new velocity from flux to the VelocityMap
 	CURRENT_SAMPLE(VelocityMap) = float2(
 		0.5 * (LDIR(inputFlux) - LDIR(outputFlux) + RDIR(outputFlux) - RDIR(inputFlux)),
-		0.5 * (BDIR(inputFlux) - BDIR(outputFlux) + TDIR(outputFlux) - TDIR(inputFlux)))
-		/ _PipeLength * 0.5 * (waterHeightBefore + WATER_HEIGHT(state));
+		0.5 * (BDIR(inputFlux) - BDIR(outputFlux) + TDIR(outputFlux) - TDIR(inputFlux)));
+		/// _PipeLength * 0.5 * (waterHeightBefore + WATER_HEIGHT(state));
 }
 
 
@@ -213,23 +213,20 @@ void HydraulicErosion(uint3 id : SV_DispatchThreadID)
 	float4 stateBottom = BOTTOM_SAMPLE(HeightMap);
 	float2 velocity = CURRENT_SAMPLE(VelocityMap);
 
+
 	// Tilt angle computation
-	float dHx = abs(TERRAIN_HEIGHT(stateRight) - TERRAIN_HEIGHT(stateLeft));
-	float dHy = abs(TERRAIN_HEIGHT(stateTop) - TERRAIN_HEIGHT(stateBottom));
+	float tiltX = atan2(abs(TERRAIN_HEIGHT(stateRight) - TERRAIN_HEIGHT(stateLeft)), 2 * _CellSize.x);
+	float tiltY = atan2(abs(TERRAIN_HEIGHT(stateTop) - TERRAIN_HEIGHT(stateBottom)), 2 * _CellSize.y);
+	float titlAngle = 0.5 * tiltX + 0.5 * tiltY;	
 	
-	float sinTiltAngle = 0.5 * dHx / sqrt(4 * _CellSize.x * _CellSize.x + dHx * dHx);
-	sinTiltAngle += 0.5 * dHy / sqrt(4 * _CellSize.y * _CellSize.y + dHy * dHy);
-
 	// Erosion limiting factor
-	float lmax = saturate(1 - (_MaxErosionDepth - WATER_HEIGHT(state)) / _MaxErosionDepth);
-
-	float sedimentTransportCapacity = _SedimentCapacity * length(velocity) * min(sinTiltAngle, 0.05) * lmax;	
+	float lmax = saturate(1 - max(0, _MaxErosionDepth - WATER_HEIGHT(state)) / _MaxErosionDepth);
+	float sedimentTransportCapacity = _SedimentCapacity * length(velocity) * min(sin(titlAngle), 0.05) * lmax;	
 
 	if (SEDIMENT(state) < sedimentTransportCapacity)
 	{
-		//float mod = _TimeDelta * _SuspensionRate * HARDNESS(state) * (sedimentTransportCapacity - SEDIMENT(state));
-		float mod = _TimeDelta * _SuspensionRate * (sedimentTransportCapacity - SEDIMENT(state));
-		TERRAIN_HEIGHT(state) = TERRAIN_HEIGHT(state);
+		float mod = _TimeDelta * _SuspensionRate * HARDNESS(state) * (sedimentTransportCapacity - SEDIMENT(state));		
+		TERRAIN_HEIGHT(state) -= mod;
 		SEDIMENT(state) += mod;
 		WATER_HEIGHT(state) += mod;
 	}
@@ -249,11 +246,11 @@ void HydraulicErosion(uint3 id : SV_DispatchThreadID)
 	HARDNESS(state) = clamp(HARDNESS(state), 0.1, 1);
 
 	// Write heighmap
-	CURRENT_SAMPLE(HeightMap) = max(0, state);	
+	CURRENT_SAMPLE(HeightMap) = state;
 }
 
 
-/* Pass 4. Terrain hydraulic erosion second step. Advecting sediment */
+/* Pass 5. Terrain hydraulic erosion second step. Advecting sediment */
 [NUMTHREADS]
 void SedimentAdvection(uint3 id : SV_DispatchThreadID)
 {
@@ -268,7 +265,7 @@ void SedimentAdvection(uint3 id : SV_DispatchThreadID)
 }
 
 
-/* Pass 5. Terrain thermal erosion */
+/* Pass 6. Terrain thermal erosion */
 [NUMTHREADS]
 void ThermalErosion(uint3 id : SV_DispatchThreadID)
 {	
@@ -336,7 +333,7 @@ void ThermalErosion(uint3 id : SV_DispatchThreadID)
 	CURRENT_SAMPLE(TerrainFluxMap) = outputFlux;
 }
 
-/* Pass 6. Apply thermal erosion */
+/* Pass 7. Apply thermal erosion */
 [NUMTHREADS]
 void ApplyThermalErosion(uint3 id : SV_DispatchThreadID)
 {

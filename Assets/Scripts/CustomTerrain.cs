@@ -111,8 +111,8 @@ namespace Assets.Scripts
             "RainAndControl",
             "FluxComputation",
             "FluxApply",
-            //"HydraulicErosion",
-            //"SedimentAdvection",
+            "HydraulicErosion",
+            "SedimentAdvection",
             "ThermalErosion",
             "ApplyThermalErosion"
         };
