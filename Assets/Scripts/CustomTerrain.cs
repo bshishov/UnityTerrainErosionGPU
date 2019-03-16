@@ -4,15 +4,14 @@ using UnityEngine;
 
 namespace Assets.Scripts
 {
-    [RequireComponent(typeof(MeshFilter))]
-    [RequireComponent(typeof(MeshRenderer))]
     public class CustomTerrain : MonoBehaviour
     {
         [Header("Main settings")]
-        public GameObject Water;
+        public Material[] Materials;
         public ComputeShader ErosionComputeShader;
         public Texture2D InitialState;
         public Material InitHeightMap;
+        public Texture2D RainMap;
 
         [Range(32, 1024)]
         public int Width = 256;
@@ -20,6 +19,16 @@ namespace Assets.Scripts
         public int Height = 256;
 
         public float BrushAmount = 0f;
+        
+        public InputModes InputMode = InputModes.AddWater;
+
+        public enum InputModes : int
+        {
+            AddWater = 0,
+            RemoveWater = 1,
+            AddTerrain = 2,
+            RemoveTerrain = 3
+        }
 
         [Serializable]
         public class SimulationSettings
@@ -30,7 +39,7 @@ namespace Assets.Scripts
             public float PipeLength = 1f / 256;
             public Vector2 CellSize = new Vector2(1f / 256, 1f / 256);
 
-            [Range(0, 0.05f)]
+            [Range(0, 0.5f)]
             public float RainRate = 0.012f;
 
             [Range(0, 1f)]
@@ -125,12 +134,6 @@ namespace Assets.Scripts
 
         // Rendering stuff
         private const string StateTextureKey = "_StateTex";
-        private MeshRenderer _surfaceMeshRenderer;
-        private MeshFilter _surfaceMeshFilter;
-        private Material _surfaceMaterial;
-        private MeshRenderer _waterMeshRenderer;
-        private MeshFilter _waterMeshFilter;
-        private Material _waterMaterial;
 
         // Brush
         private Plane _floor = new Plane(Vector3.up, Vector3.zero);
@@ -138,17 +141,6 @@ namespace Assets.Scripts
 
         void Start()
         {
-            if (Water == null)
-                Debug.LogError("Water GameObject should be set");
-
-            // Gather necessary components
-            _surfaceMeshRenderer = GetComponent<MeshRenderer>();
-            _surfaceMeshFilter = GetComponent<MeshFilter>();
-            _surfaceMaterial = _surfaceMeshRenderer.material;
-            _waterMeshFilter = Water.GetComponent<MeshFilter>();
-            _waterMeshRenderer = Water.GetComponent<MeshRenderer>();
-            _waterMaterial = _waterMeshRenderer.material;
-
             Camera.main.depthTextureMode = DepthTextureMode.Depth;
 
             // Set everything up
@@ -158,7 +150,7 @@ namespace Assets.Scripts
         void Update()
         {
             // Controls
-            _controlsRadius = Mathf.Clamp01(_controlsRadius + Input.mouseScrollDelta.y * Time.deltaTime);
+            _controlsRadius = Mathf.Clamp(_controlsRadius + Input.mouseScrollDelta.y * Time.deltaTime * 0.2f, 0.01f, 1f);
 
             var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             var amount = 0f;
@@ -187,6 +179,7 @@ namespace Assets.Scripts
             {
                 if (Settings != null)
                 {
+                    // General parameters
                     ErosionComputeShader.SetFloat("_TimeDelta", Settings.TimeDelta);
                     ErosionComputeShader.SetFloat("_PipeArea", Settings.PipeArea);
                     ErosionComputeShader.SetFloat("_Gravity", Settings.Gravity);
@@ -208,7 +201,9 @@ namespace Assets.Scripts
                     ErosionComputeShader.SetFloat("_TalusAngleTangentBias", Settings.TalusAngleTangentBias);
                     ErosionComputeShader.SetFloat("_ThermalErosionTimeScale", Settings.ThermalErosionTimeScale);
 
+                    // Inputs
                     ErosionComputeShader.SetVector("_InputControls", inputControls);
+                    ErosionComputeShader.SetInt("_InputMode", (int)InputMode);
                 }
 
                 // Dispatch all passes sequentially
@@ -298,6 +293,7 @@ namespace Assets.Scripts
                     _kernels[i++] = kernel;
 
                     // Set all textures
+                    ErosionComputeShader.SetTexture(kernel, "RainMap", RainMap);
                     ErosionComputeShader.SetTexture(kernel, "HeightMap", _stateTexture);
                     ErosionComputeShader.SetTexture(kernel, "VelocityMap", _velocityTexture);
                     ErosionComputeShader.SetTexture(kernel, "FluxMap", _waterFluxTexture);
@@ -321,21 +317,22 @@ namespace Assets.Scripts
 
             /* ========= Setup Rendering =========== */
             // Assign state texture to materials
-            _surfaceMaterial.SetTexture(StateTextureKey, _stateTexture);
-            _waterMaterial.SetTexture(StateTextureKey, _stateTexture);
+            foreach (var material in Materials)
+            {
+                material.SetTexture(StateTextureKey, _stateTexture);
+            }
+        }
 
-            // Generate meshes
-            var mesh = MeshUtils.GeneratePlane(
-                origin: Vector3.zero, 
-                axis0: Vector3.right * Width, 
-                axis1: Vector3.forward * Height, 
-                axis0Vertices: Width,
-                axis1Vertices: Height, 
-                uvStart: Vector2.zero, 
-                uvEnd: Vector2.one);
+        public void OnGUI()
+        {
+            const float guiWidth = 400f;
+            const float lineHeight= 30f;
+            const float padding = 10f;
 
-            _waterMeshFilter.sharedMesh = mesh;
-            _surfaceMeshFilter.sharedMesh = mesh;
+            var inputModes = new[] {"Add water", "Remove water", "Add Terrain", "Remove terrain"};
+            InputMode = (InputModes)GUI.Toolbar(new Rect(padding, padding, guiWidth, lineHeight), (int)InputMode, inputModes);
+            GUI.Label(new Rect(padding, lineHeight + padding * 2, guiWidth, lineHeight), "Brush strength");
+            BrushAmount = GUI.HorizontalSlider(new Rect(padding, lineHeight * 2 + padding * 2, guiWidth, lineHeight), BrushAmount, 1f, 100f);
         }
     }
 }

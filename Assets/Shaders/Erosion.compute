@@ -55,7 +55,13 @@ RWTexture2D<float4> FluxMap;
 // Terrain Flux field (R - left, G - right, B - top, A - bottom)
 RWTexture2D<float4> TerrainFluxMap;
 
-// Fluid simulation propertis
+Texture2D<float> RainMap;
+
+
+uint _InputMode;
+float4 _InputControls;
+
+// Fluid simulation properties
 uint _Width;
 uint _Height;
 float _TimeDelta;
@@ -65,7 +71,6 @@ float _PipeLength;
 float2 _CellSize;
 float _Evaporation;
 float _RainRate;
-float4 _InputControls;
 
 // Hydraulic erosion properties
 float _SedimentCapacity;
@@ -103,18 +108,22 @@ float4 SampleBilinear(RWTexture2D<float4> tex, float2 uv)
 [NUMTHREADS]
 void RainAndControl(uint3 id : SV_DispatchThreadID) 
 {	
-	float4 currentState = CURRENT_SAMPLE(HeightMap);
-	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate;	
+	float4 currentState = CURRENT_SAMPLE(HeightMap);	
+	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate * CURRENT_SAMPLE(RainMap).x;
 
 	// Water-drawing brush
 	float2 uv = float2((float)id.x / _Width, (float)id.y / _Height);
 	float2 dist = uv - _InputControls.xy;
 	if (length(dist) < abs(_InputControls.z)) 
 	{
-		if (_InputControls.z > 0)
+		if(_InputMode == 0)
 			WATER_HEIGHT(currentState) = max(0, WATER_HEIGHT(currentState) + _InputControls.w * _TimeDelta);
-		else
+		else if (_InputMode == 1)
+			WATER_HEIGHT(currentState) = max(0, WATER_HEIGHT(currentState) - _InputControls.w * _TimeDelta);
+		else if (_InputMode == 2)
 			TERRAIN_HEIGHT(currentState) = max(0, TERRAIN_HEIGHT(currentState) + _InputControls.w * _TimeDelta);
+		else if (_InputMode == 3)
+			TERRAIN_HEIGHT(currentState) = max(0, TERRAIN_HEIGHT(currentState) - _InputControls.w * _TimeDelta);
 	}
 
 	// Write new state to the HeightMap

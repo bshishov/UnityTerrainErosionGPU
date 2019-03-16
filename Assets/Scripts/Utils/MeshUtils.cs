@@ -47,7 +47,7 @@ namespace Assets.Scripts.Utils
             {
                 name = string.Format("Plane_{0}x{1}", axis0Vertices, axis1Vertices),
                 vertices = vertices,
-                normals = normals,
+                //normals = normals,
                 uv = uvs,
                 triangles = triangles
             };
