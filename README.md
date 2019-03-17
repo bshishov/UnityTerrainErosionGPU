@@ -10,7 +10,7 @@ This is an example implementation of hydraulic and thermal erosion with shallow 
 This project is still in progress. Hydraulic erosion requires a bit more parameter tweaking and revisiting the actual implementation. But overall it works.
 
 ## Demo
-Just run `Main` Scene and use mouse to draw water. To remove water change `BrushAmount` property in the `CustomTerrain` component to the negative value.
+Just run `Main` Scene and use the mouse to draw modify terrain/water.
 
 ## How it works
 Explanation is still in progress...
@@ -26,8 +26,18 @@ We first need to list all the data we will operate with during the simulation. S
   - <img src="https://tex.s2cms.ru/svg/l_x" alt="l_x" /> - cell size along <img src="https://tex.s2cms.ru/svg/x" alt="x" /> axis
   - <img src="https://tex.s2cms.ru/svg/l_y" alt="l_y" /> - cell size along <img src="https://tex.s2cms.ru/svg/y" alt="y" /> axis
   - <img src="https://tex.s2cms.ru/svg/l" alt="l" /> - pipe length
+  - <img src="https://tex.s2cms.ru/svg/A" alt="A" /> - pip cross-section area
   - <img src="https://tex.s2cms.ru/svg/K_e" alt="K_e" /> - evaporation rate
   - <img src="https://tex.s2cms.ru/svg/K_r" alt="K_r" /> - rain rate
+  - Hydraulic erosion parameters
+    - <img src="https://tex.s2cms.ru/svg/K_c" alt="K_c" /> - sediment capacity
+    - <img src="https://tex.s2cms.ru/svg/K_s" alt="K_s" /> - soil suspension rate
+    - <img src="https://tex.s2cms.ru/svg/K_d" alt="K_d" /> - soil deposition rate
+    - <img src="https://tex.s2cms.ru/svg/l_%7Bmax%7D" alt="l_{max}" /> - erosion depth limit
+  - Thermal erosion parameters
+    - <img src="https://tex.s2cms.ru/svg/K_t" alt="K_t" /> - thermal erosion rate
+    - <img src="https://tex.s2cms.ru/svg/K%5Es_%5Calpha" alt="K^s_\alpha" /> - talus angle scale
+    - <img src="https://tex.s2cms.ru/svg/K%5Eb_%5Calpha" alt="K^b_\alpha" /> - talus angle bias  
 - Grid-values
   - <img src="https://tex.s2cms.ru/svg/h%5E%7Bterrain%7D_%7Bi%2Cj%7D" alt="h^{terrain}_{i,j}" /> - height of terrain in cell <img src="https://tex.s2cms.ru/svg/(i%2C%20j)" alt="(i, j)" />, must be positive
   - <img src="https://tex.s2cms.ru/svg/h%5E%7Bwater%7D_%7Bi%2Cj%7D" alt="h^{water}_{i,j}" /> - height of water in cell <img src="https://tex.s2cms.ru/svg/(i%2C%20j)" alt="(i, j)" />, must be positive
@@ -85,27 +95,31 @@ incoming flow is the outgoing flow from neighbor cells in opposite directions.
 
 The total volume change of the column is:
 
-<img src="https://tex.s2cms.ru/svg/%5CDelta%20V%20%3D%20f%5E%7Bin%7D%20-%20f%5E%7Bout%7D" alt="\Delta V = f^{in} - f^{out}" />
+<img src="https://tex.s2cms.ru/svg/%5CDelta%20V%20%3D%5CDelta%20t%20(%20f%5E%7Bin%7D%20-%20f%5E%7Bout%7D%20)" alt="\Delta V =\Delta t ( f^{in} - f^{out} )" />
 
 Finally apply the volume change to the water column, since we store the height and not the volume we need to divide by cell area:
 
-<img src="https://tex.s2cms.ru/svg/h%5E%7Bwater%7D_%7Bi%2Cj%7D%20%3A%3D%20h%5E%7Bwater%7D_%7Bi%2Cj%7D%20%2B%20%5CDelta%20t%20%5Cfrac%7B%5CDelta%20V%7D%7Bl_x%20l_y%7D" alt="h^{water}_{i,j} := h^{water}_{i,j} + \Delta t \frac{\Delta V}{l_x l_y}" />
+<img src="https://tex.s2cms.ru/svg/h%5E%7Bwater%7D_%7Bi%2Cj%7D%20%3A%3D%20h%5E%7Bwater%7D_%7Bi%2Cj%7D%20%2B%20%5Cfrac%7B%5CDelta%20V%7D%7Bl_x%20l_y%7D" alt="h^{water}_{i,j} := h^{water}_{i,j} + \frac{\Delta V}{l_x l_y}" />
 
 And that's it for water flow. It is also called shallow water equations using pipe model. At the end of this step, the water can slide down the terrain, create vertical waves and so on. But to apply erosion we will need to do more stuff.
 
 ### Step 3.5. Compute water velocity
 In further computation we will need the information about the water velocity in each cell. We can compute it using information about the water flow:
 
-<img src="https://tex.s2cms.ru/svg/v%5E%7Bx%7D_%7Bi%2Cj%7D%20%3D%20%5Cfrac%7Bf%5E%7Bright%7D_%7Bi-1%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2Cj%7D%20%2B%20f%5E%7Bright%7D_%7Bi%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2B1%2Cj%7D%7D%7B2%7D" alt="v^{x}_{i,j} = \frac{f^{right}_{i-1,j} - f^{left}_{i,j} + f^{right}_{i,j} - f^{left}_{i+1,j}}{2}" />
+<img src="https://tex.s2cms.ru/svg/v%5E%7Bx%7D_%7Bi%2Cj%7D%20%3A%3D%20%5Cfrac%7Bf%5E%7Bright%7D_%7Bi-1%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2Cj%7D%20%2B%20f%5E%7Bright%7D_%7Bi%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2B1%2Cj%7D%7D%7B2%7D" alt="v^{x}_{i,j} := \frac{f^{right}_{i-1,j} - f^{left}_{i,j} + f^{right}_{i,j} - f^{left}_{i+1,j}}{2}" />
 
-<img src="https://tex.s2cms.ru/svg/v%5E%7By%7D_%7Bi%2Cj%7D%20%3D%20%5Cfrac%7Bf%5E%7Bup%7D_%7Bi%2Cj-1%7D%20-%20f%5E%7Bdown%7D_%7Bi%2Cj%7D%20%2B%20f%5E%7Bup%7D_%7Bi%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2Cj%2B1%7D%7D%7B2%7D" alt="v^{y}_{i,j} = \frac{f^{up}_{i,j-1} - f^{down}_{i,j} + f^{up}_{i,j} - f^{left}_{i,j+1}}{2}" />
+<img src="https://tex.s2cms.ru/svg/v%5E%7By%7D_%7Bi%2Cj%7D%20%3A%3D%20%5Cfrac%7Bf%5E%7Bup%7D_%7Bi%2Cj-1%7D%20-%20f%5E%7Bdown%7D_%7Bi%2Cj%7D%20%2B%20f%5E%7Bup%7D_%7Bi%2Cj%7D%20-%20f%5E%7Bleft%7D_%7Bi%2Cj%2B1%7D%7D%7B2%7D" alt="v^{y}_{i,j} := \frac{f^{up}_{i,j-1} - f^{down}_{i,j} + f^{up}_{i,j} - f^{left}_{i,j+1}}{2}" />
+
+<img src="https://tex.s2cms.ru/svg/%5Cvec%7Bv%7D_%7Bi%2Cj%7D%20%3D%20%5C%7Bv%5E%7Bx%7D_%7Bi%2Cj%7D%3B%20v%5E%7By%7D_%7Bi%2Cj%7D%20%5C%7D" alt="\vec{v}_{i,j} = \{v^{x}_{i,j}; v^{y}_{i,j} \}" />
 
 the velocity in each axis is the average total flow in each pipe along that axis. So for <img src="https://tex.s2cms.ru/svg/x" alt="x" /> axis we have 2 neighbor cells: <img src="https://tex.s2cms.ru/svg/(i-1%2C%20j)" alt="(i-1, j)" /> and <img src="https://tex.s2cms.ru/svg/(i%2B1%2C%20j)" alt="(i+1, j)" />, thus we can compute the total flow for each neighbor and average across neighbors.
 
 **Note**: This is only partially physically accurate. For the true velocity - this amount should be scaled by something (include pipe area and length).
 
 ### Step 4. Hydraulic erosion and deposition
-...
+While water flows over terrain it takes (erodes) and transports some amount of soil. After a while, some suspended sediment will be deposited to the ground. This process is mostly defined by the sediment transport capacity of the water flow. There are many complex models regarding these processes, but we will use the simple empirical equation:
+
+<img src="https://tex.s2cms.ru/svg/C_%7Bi%2Cj%7D%3DK_c%20%5Ccdot%20sin(%5Calpha_%7Bi%2Cj%7D)%20%5Ccdot%20%7C%5Cvec%7Bv%7D_%7Bi%2Cj%7D%7C" alt="C_{i,j}=K_c \cdot sin(\alpha_{i,j}) \cdot |\vec{v}_{i,j}|" />
 
 ### Step 5. Thermal Erosion
 ...

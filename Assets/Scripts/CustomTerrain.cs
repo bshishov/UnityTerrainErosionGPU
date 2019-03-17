@@ -33,8 +33,8 @@ namespace Assets.Scripts
         [Serializable]
         public class SimulationSettings
         {
-            [Range(0f, 0.05f)]
-            public float TimeDelta = 0.02f;
+            [Range(0f, 10f)]
+            public float TimeScale = 1f;
 
             public float PipeLength = 1f / 256;
             public Vector2 CellSize = new Vector2(1f / 256, 1f / 256);
@@ -138,6 +138,7 @@ namespace Assets.Scripts
         // Brush
         private Plane _floor = new Plane(Vector3.up, Vector3.zero);
         private float _brushRadius = 0.1f;
+        private Vector4 _inputControls;
 
         void Start()
         {
@@ -171,16 +172,19 @@ namespace Assets.Scripts
                 amount = 0f;
             }
 
-            var inputControls = new Vector4(brushX, brushY, _brushRadius, amount);
-            Shader.SetGlobalVector("_InputControls", inputControls);
+            _inputControls = new Vector4(brushX, brushY, _brushRadius, amount);
+            Shader.SetGlobalVector("_InputControls", _inputControls);
+        }
 
+        void FixedUpdate()
+        {
             // Compute dispatch
             if (ErosionComputeShader != null)
             {
                 if (Settings != null)
                 {
                     // General parameters
-                    ErosionComputeShader.SetFloat("_TimeDelta", Settings.TimeDelta);
+                    ErosionComputeShader.SetFloat("_TimeDelta", Time.fixedDeltaTime * Settings.TimeScale);
                     ErosionComputeShader.SetFloat("_PipeArea", Settings.PipeArea);
                     ErosionComputeShader.SetFloat("_Gravity", Settings.Gravity);
                     ErosionComputeShader.SetFloat("_PipeLength", Settings.PipeLength);
@@ -202,7 +206,7 @@ namespace Assets.Scripts
                     ErosionComputeShader.SetFloat("_ThermalErosionTimeScale", Settings.ThermalErosionTimeScale);
 
                     // Inputs
-                    ErosionComputeShader.SetVector("_InputControls", inputControls);
+                    ErosionComputeShader.SetVector("_InputControls", _inputControls);
                     ErosionComputeShader.SetInt("_InputMode", (int)InputMode);
                 }
 

@@ -221,13 +221,15 @@ void HydraulicErosion(uint3 id : SV_DispatchThreadID)
 
 
 	// Tilt angle computation
-	float tiltX = atan2(abs(TERRAIN_HEIGHT(stateRight) - TERRAIN_HEIGHT(stateLeft)), 2 * _CellSize.x);
-	float tiltY = atan2(abs(TERRAIN_HEIGHT(stateTop) - TERRAIN_HEIGHT(stateBottom)), 2 * _CellSize.y);
-	float titlAngle = 0.5 * tiltX + 0.5 * tiltY;	
+	float3 dhdx = float3(2 * _CellSize.x, TERRAIN_HEIGHT(stateRight) - TERRAIN_HEIGHT(stateLeft), 0);
+	float3 dhdy = float3(0, TERRAIN_HEIGHT(stateTop) - TERRAIN_HEIGHT(stateBottom), 2 * _CellSize.y);
+	float3 normal = cross(dhdx, dhdy);
+
+	float sinTiltAngle = abs(normal.y) / length(normal);
 	
 	// Erosion limiting factor
 	float lmax = saturate(1 - max(0, _MaxErosionDepth - WATER_HEIGHT(state)) / _MaxErosionDepth);
-	float sedimentTransportCapacity = _SedimentCapacity * length(velocity) * min(sin(titlAngle), 0.05) * lmax;	
+	float sedimentTransportCapacity = _SedimentCapacity * length(velocity) * min(sinTiltAngle, 0.05) * lmax;
 
 	if (SEDIMENT(state) < sedimentTransportCapacity)
 	{
