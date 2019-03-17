@@ -4,22 +4,11 @@ namespace Assets.Scripts.Utils
 {
     public class FlyingCamera : MonoBehaviour
     {
-        /*
-            Writen by Windexglow 11-13-10.  Use it, edit it, steal it I don't care.  
-            Converted to C# 27-02-13 - no credit wanted.
-            Simple flycam I made, since I couldn't find any others made public.  
-            Made simple to use (drag and drop, done) for regular keyboard layout  
-            wasd : basic movement
-            shift : Makes camera accelerate
-            space : Moves camera on X and Z axis only.  So camera doesn't gain any height
-        */
-
         public float MainSpeed = 100.0f; //regular speed
         public float ShiftAdd = 250.0f; //multiplied by how long shift is held.  Basically running
-        public float MaxShift = 1000.0f; //Maximum speed when holdin gshift
+        public float MaxShift = 1000.0f; //Maximum speed when holding shift
         public float MouseSensitivity = 0.25f; //How sensitive it with mouse
         public bool RotateOnlyIfMousedown = true;
-        public bool MovementStaysFlat = true;
 
         private Vector3 _lastMousePosition = new Vector3(255, 255, 255); //kind of in the middle of the screen, rather than at the top (play)
         private float _totalRun = 1.0f;
@@ -28,18 +17,17 @@ namespace Assets.Scripts.Utils
         {
             if (Input.GetMouseButtonDown(1))
             {
-                _lastMousePosition = Input.mousePosition; // $CTK reset when we begin
+                _lastMousePosition = Input.mousePosition; 
             }
 
             if (!RotateOnlyIfMousedown || (RotateOnlyIfMousedown && Input.GetMouseButton(1)))
             {
-                _lastMousePosition = Input.mousePosition - _lastMousePosition;
-                _lastMousePosition = new Vector3(-_lastMousePosition.y * MouseSensitivity, _lastMousePosition.x * MouseSensitivity, 0);
-                _lastMousePosition = new Vector3(transform.eulerAngles.x + _lastMousePosition.x, transform.eulerAngles.y + _lastMousePosition.y,
-                    0);
-                transform.eulerAngles = _lastMousePosition;
+                var mouseDelta = Input.mousePosition - _lastMousePosition;
+                var rotationDelta = new Vector3(-mouseDelta.y * MouseSensitivity, mouseDelta.x * MouseSensitivity, 0);
+                transform.eulerAngles = new Vector3(
+                    FlyingCamera.ClampAngle(transform.eulerAngles.x + rotationDelta.x, -89, 89), 
+                    transform.eulerAngles.y + rotationDelta.y, 0);
                 _lastMousePosition = Input.mousePosition;
-                //Mouse  camera angle done.  
             }
 
             var p = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
@@ -58,6 +46,18 @@ namespace Assets.Scripts.Utils
             }
 
             transform.Translate(p * Time.deltaTime);
+        }
+
+        public static float ClampAngle(float angle, float min, float max)
+        {
+            // accepts e.g. -80f, 80f
+            if (angle < 0f)
+                angle = 360 + angle;
+
+            if (angle > 180f)
+                return Mathf.Max(angle, 360 + min);
+
+            return Mathf.Min(angle, max);
         }
     }
 }

@@ -3,6 +3,7 @@
     Properties
     {
         _MainTex ("Texture", 2D) = "white" {}
+		[NoScaleOffset] _Hardness("Texture", 2D) = "white" {}
 		_SeaLevel("SeaLevel", float) = 0
 		_Scale("Scale", float) = 1
 		_Bias("Bias", float) = 0
@@ -41,6 +42,7 @@
             }
 
             sampler2D _MainTex;
+			sampler2D _Hardness;
 			float2 _MainTex_TexelSize;
 			float _Scale;
 			float _Bias;
@@ -60,7 +62,8 @@
 				col.b = 0;
 				
 				// Hardness
-				col.a = 1; // saturate(0.2 + col.r * 0.8);
+				half h = tex2D(_Hardness, i.uv);
+				col.a = saturate(0.2 + col.r * 0.8 * h);
 				
                 return col;
             }

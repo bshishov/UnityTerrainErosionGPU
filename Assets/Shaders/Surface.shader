@@ -104,13 +104,18 @@
 		{
 			Tags {"LightMode" = "ShadowCaster"}		
 			LOD 300
-			//Cull Off
+
+			ZWrite On 
+			ZTest Less
+			Offset 1, 1
+			Cull Off
 			//ZWrite Off
 
 			CGPROGRAM
 			#pragma vertex vert
 			#pragma fragment frag
 			#pragma multi_compile_shadowcaster
+			#pragma fragmentoption ARB_precision_hint_fastest
 			#include "UnityCG.cginc"
 
 			struct v2f {

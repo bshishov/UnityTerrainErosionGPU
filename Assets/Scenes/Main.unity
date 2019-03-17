@@ -38,7 +38,7 @@ RenderSettings:
   m_ReflectionIntensity: 1
   m_CustomReflection: {fileID: 0}
   m_Sun: {fileID: 705507994}
-  m_IndirectSpecularColor: {r: 0.5520557, g: 0.5976089, b: 0.62079483, a: 1}
+  m_IndirectSpecularColor: {r: 0.55206954, g: 0.59798497, b: 0.62089014, a: 1}
   m_UseRadianceAmbientProbe: 0
 --- !u!157 &3
 LightmapSettings:
@@ -158,7 +158,7 @@ Light:
     m_Resolution: -1
     m_CustomResolution: -1
     m_Strength: 1
-    m_Bias: 0.05
+    m_Bias: 0.15
     m_NormalBias: 0.4
     m_NearPlane: 0.2
     m_CullingMatrixOverride:
@@ -312,7 +312,6 @@ MonoBehaviour:
   MaxShift: 1000
   MouseSensitivity: 0.25
   RotateOnlyIfMousedown: 1
-  MovementStaysFlat: 1
 --- !u!1 &1293415288
 GameObject:
   m_ObjectHideFlags: 0
@@ -405,12 +404,38 @@ MonoBehaviour:
   LODSettings:
   - Size: 33
     ScreenHeight: 0.99999
+    FadeTransitionWidth: 0.5
+    IgnoreLodGroup: 0
+    RenderSettings:
+      ShadowCastingMode: 1
+      ReceiveShadows: 1
+      DynamicOccluded: 1
   - Size: 16
-    ScreenHeight: 0.67
+    ScreenHeight: 0.8
+    FadeTransitionWidth: 0.5
+    IgnoreLodGroup: 0
+    RenderSettings:
+      ShadowCastingMode: 1
+      ReceiveShadows: 1
+      DynamicOccluded: 1
   - Size: 8
     ScreenHeight: 0.361
+    FadeTransitionWidth: 0.5
+    IgnoreLodGroup: 0
+    RenderSettings:
+      ShadowCastingMode: 1
+      ReceiveShadows: 1
+      DynamicOccluded: 1
   - Size: 4
     ScreenHeight: 0
+    FadeTransitionWidth: 0.5
+    IgnoreLodGroup: 0
+    RenderSettings:
+      ShadowCastingMode: 1
+      ReceiveShadows: 1
+      DynamicOccluded: 1
+  LodFadeMode: 2
+  AnimateLodCrossFading: 0
   Materials:
   - {fileID: 2100000, guid: 1cf9e6530b1beb341b6ecccf254cf279, type: 2}
   - {fileID: 2100000, guid: 4dc86583f8ebc4d44be01aada5cc6c14, type: 2}

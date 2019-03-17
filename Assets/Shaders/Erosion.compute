@@ -55,9 +55,6 @@ RWTexture2D<float4> FluxMap;
 // Terrain Flux field (R - left, G - right, B - top, A - bottom)
 RWTexture2D<float4> TerrainFluxMap;
 
-Texture2D<float> RainMap;
-
-
 uint _InputMode;
 float4 _InputControls;
 
@@ -109,7 +106,7 @@ float4 SampleBilinear(RWTexture2D<float4> tex, float2 uv)
 void RainAndControl(uint3 id : SV_DispatchThreadID) 
 {	
 	float4 currentState = CURRENT_SAMPLE(HeightMap);	
-	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate * CURRENT_SAMPLE(RainMap).x;
+	WATER_HEIGHT(currentState) += _TimeDelta * _RainRate;
 
 	// Water-drawing brush
 	float2 uv = float2((float)id.x / _Width, (float)id.y / _Height);

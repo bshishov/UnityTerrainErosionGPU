@@ -1,11 +1,21 @@
 ﻿using System;
+using System.Collections.Generic;
 using Assets.Scripts.Utils;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Assets.Scripts
 {
     public class TerrainGenerator : MonoBehaviour
     {
+        [Serializable]
+        public class RenderSettings
+        {
+            public ShadowCastingMode ShadowCastingMode = ShadowCastingMode.On;
+            public bool ReceiveShadows = true;
+            public bool DynamicOccluded = true;
+        }
+
         [Serializable]
         public class ChunkLODSetting
         {
@@ -13,7 +23,17 @@ namespace Assets.Scripts
             public int Size = 200;
 
             [Range(0, 1)]
+            [Tooltip("The screen relative height to use for the transition [0-1].")]
             public float ScreenHeight;
+
+            [Range(0, 1)]
+            [Tooltip("Width of the cross-fade transition zone (proportion to the current LOD's whole length) [0-1]. Only used if it's not animated.")]
+            public float FadeTransitionWidth = 0.5f;
+
+            [Tooltip("If true, mesh for the current chunk will ignore LOD group of the chunk. May be useful for low-detailed shadow-only meshes")]
+            public bool IgnoreLodGroup = false;
+
+            public RenderSettings RenderSettings;
         }
 
         public bool GenerateOnStart;
@@ -23,6 +43,8 @@ namespace Assets.Scripts
         public int ChunksX = 16;
         public int ChunksZ = 16;
         public ChunkLODSetting[] LODSettings;
+        public LODFadeMode LodFadeMode = LODFadeMode.CrossFade;
+        public bool AnimateLodCrossFading = true;
 
         [Header("Materials")]
         public Material[] Materials;
@@ -56,38 +78,55 @@ namespace Assets.Scripts
                     group.transform.SetParent(transform, false);
 
                     var lodGroup = group.AddComponent<LODGroup>();
-                    lodGroup.fadeMode = LODFadeMode.SpeedTree;
-                    //lodGroup.animateCrossFading = true;
+                    lodGroup.fadeMode = LodFadeMode;
+                    lodGroup.animateCrossFading = AnimateLodCrossFading;
 
-                    var lods = new LOD[LODSettings.Length];
-
+                    var lods = new List<LOD>();
                     for (var i = 0; i < LODSettings.Length; i++)
                     {
-                        var chunk = GenerateChunk(chunkWorldSize, uvStart, uvEnd, i);
+                        var settings = LODSettings[i];
+                        var chunk = GenerateChunk(chunkWorldSize, uvStart, uvEnd, settings, i);
                         chunk.transform.SetParent(group.transform, false);
 
-                        var chunkRenderer = chunk.GetComponent<Renderer>();
-                        lods[i] = new LOD(LODSettings[i].ScreenHeight, new Renderer[] { chunkRenderer });
+                        if (!settings.IgnoreLodGroup)
+                        {
+                            // Add chunk renderer to the LOD group
+                            var chunkRenderer = chunk.GetComponent<Renderer>();
+                            lods.Add(new LOD(settings.ScreenHeight, new Renderer[] {chunkRenderer})
+                            {
+                                fadeTransitionWidth = settings.FadeTransitionWidth
+                            });
+                        }
                     }
                     
-                    lodGroup.SetLODs(lods);
+                    lodGroup.SetLODs(lods.ToArray());
                     lodGroup.RecalculateBounds();
                 }
             }
         }
 
-        GameObject GenerateChunk(Vector3 chunkSize, Vector2 uvStart, Vector2 uvEnd, int lod = 0)
+        GameObject GenerateChunk(Vector3 chunkSize, Vector2 uvStart, Vector2 uvEnd, ChunkLODSetting settings, int lodLevel)
         {
-            var chunkObject = new GameObject(string.Format("Terrain_Chunk_LOD{0}", lod));
+            var chunkObject = new GameObject(string.Format("Terrain_Chunk_LOD{0}", lodLevel));
             var chunkMeshFilter = chunkObject.AddComponent<MeshFilter>();
             var chunkMeshRenderer = chunkObject.AddComponent<MeshRenderer>();
 
-            var w = LODSettings[lod].Size;
-            var h = LODSettings[lod].Size;
+            // Renderer settings
+            chunkMeshRenderer.shadowCastingMode = settings.RenderSettings.ShadowCastingMode;
+            chunkMeshRenderer.allowOcclusionWhenDynamic = settings.RenderSettings.DynamicOccluded;
+            chunkMeshRenderer.receiveShadows = settings.RenderSettings.ReceiveShadows;
 
-            var mesh = MeshUtils.GeneratePlane(Vector3.zero, Vector3.right * chunkSize.x, Vector3.forward * chunkSize.z, w, h, uvStart, uvEnd);
+            var mesh = MeshUtils.GeneratePlane(
+                Vector3.zero, 
+                Vector3.right * chunkSize.x, 
+                Vector3.forward * chunkSize.z,
+                settings.Size,
+                settings.Size, 
+                uvStart, uvEnd);
             
             mesh.bounds = new Bounds(0.5f * chunkSize, chunkSize);
+            mesh.name = chunkObject.name;
+
             chunkMeshFilter.mesh = mesh;
             chunkMeshRenderer.materials = Materials;
             return chunkObject;

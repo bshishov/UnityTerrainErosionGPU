@@ -137,7 +137,7 @@ namespace Assets.Scripts
 
         // Brush
         private Plane _floor = new Plane(Vector3.up, Vector3.zero);
-        private float _controlsRadius = 0.1f;
+        private float _brushRadius = 0.1f;
 
         void Start()
         {
@@ -150,7 +150,7 @@ namespace Assets.Scripts
         void Update()
         {
             // Controls
-            _controlsRadius = Mathf.Clamp(_controlsRadius + Input.mouseScrollDelta.y * Time.deltaTime * 0.2f, 0.01f, 1f);
+            _brushRadius = Mathf.Clamp(_brushRadius + Input.mouseScrollDelta.y * Time.deltaTime * 0.2f, 0.01f, 1f);
 
             var ray = Camera.main.ScreenPointToRay(Input.mousePosition);
             var amount = 0f;
@@ -171,7 +171,7 @@ namespace Assets.Scripts
                 amount = 0f;
             }
 
-            var inputControls = new Vector4(brushX, brushY, _controlsRadius, amount);
+            var inputControls = new Vector4(brushX, brushY, _brushRadius, amount);
             Shader.SetGlobalVector("_InputControls", inputControls);
 
             // Compute dispatch
@@ -293,7 +293,6 @@ namespace Assets.Scripts
                     _kernels[i++] = kernel;
 
                     // Set all textures
-                    ErosionComputeShader.SetTexture(kernel, "RainMap", RainMap);
                     ErosionComputeShader.SetTexture(kernel, "HeightMap", _stateTexture);
                     ErosionComputeShader.SetTexture(kernel, "VelocityMap", _velocityTexture);
                     ErosionComputeShader.SetTexture(kernel, "FluxMap", _waterFluxTexture);
@@ -325,14 +324,24 @@ namespace Assets.Scripts
 
         public void OnGUI()
         {
-            const float guiWidth = 400f;
-            const float lineHeight= 30f;
-            const float padding = 10f;
+            var inputModes = new[] { "Add water", "Remove water", "Add Terrain", "Remove terrain" };
+            GUILayout.BeginArea(new Rect(10, 10, 400, 400));
+            InputMode = (InputModes)GUILayout.Toolbar((int)InputMode, inputModes);
 
-            var inputModes = new[] {"Add water", "Remove water", "Add Terrain", "Remove terrain"};
-            InputMode = (InputModes)GUI.Toolbar(new Rect(padding, padding, guiWidth, lineHeight), (int)InputMode, inputModes);
-            GUI.Label(new Rect(padding, lineHeight + padding * 2, guiWidth, lineHeight), "Brush strength");
-            BrushAmount = GUI.HorizontalSlider(new Rect(padding, lineHeight * 2 + padding * 2, guiWidth, lineHeight), BrushAmount, 1f, 100f);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Brush strength");
+            BrushAmount = GUILayout.HorizontalSlider(BrushAmount, 1f, 100f);
+            GUILayout.EndHorizontal();
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("Brush size");
+            _brushRadius = GUILayout.HorizontalSlider(_brushRadius, 0.01f, 0.2f);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Label("[W][A][S][D] - Fly, hold [Shift] - fly faster");
+            GUILayout.Label("hold [RMB] - rotate camera");
+            GUILayout.Label("[LMB] - draw");
+            GUILayout.EndArea();
         }
     }
 }
