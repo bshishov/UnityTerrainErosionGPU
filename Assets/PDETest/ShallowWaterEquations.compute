@@ -1,0 +1,103 @@
+﻿#pragma kernel CSMain
+#pragma kernel Brush
+
+RWTexture2D<float4> _State;
+
+float _DeltaTime;
+float _DeltaX;
+float _DeltaY; 
+float _b;
+float _f;
+float _g;
+float _nu;
+
+// Brush
+float _BrushX;
+float _BrushY;
+float _BrushSize;
+float _BrushAmount;
+uint _BrushChannel;
+
+// Sampling macro
+#define SAMPLE_WITH_OFFSET(tex, x, y) ((tex[id.xy + uint2(x, y)]))
+#define CURRENT_SAMPLE(tex) (tex[id.xy])
+#define LEFT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, -1, 0))
+#define RIGHT_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 1, 0))
+#define TOP_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, 1))
+#define BOTTOM_SAMPLE(tex) (SAMPLE_WITH_OFFSET(tex, 0, -1))
+
+#define H_(col) (col.r)
+#define h_(col) (col.g)
+#define U_(col) (col.b)
+#define V_(col) (col.a)
+
+
+[numthreads(8, 8, 1)]
+void Brush(uint3 id : SV_DispatchThreadID) 
+{	
+	const float brushDt = 0.01;
+	float4 currentState = CURRENT_SAMPLE(_State);
+	float change = _BrushAmount * brushDt;
+		
+	float2 dist = (float2)id.xy - float2(_BrushX, _BrushY);
+	if (length(dist) < _BrushSize)
+	{
+		switch (_BrushChannel) {
+		case 0:
+			currentState.x += change;
+			break;
+		case 1:
+			currentState.y += change;
+			break;
+		case 2:
+			currentState.z += change;
+			break;
+		case 3:
+			currentState.w += change;
+			break;
+		default:
+			break;
+		}
+		
+	}
+	
+	CURRENT_SAMPLE(_State) = currentState;
+}
+
+[numthreads(8,8,1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	float _1over2dx = 1.0 / (2 * _DeltaX);
+	float _1over2dy = 1.0 / (2 * _DeltaY);
+	float _1overdx2 = 1.0 / (_DeltaX * _DeltaX);
+	float _1overdy2 = 1.0 / (_DeltaY * _DeltaY);
+
+	// Sampling
+	float4 sC = CURRENT_SAMPLE(_State);
+	float4 sL = LEFT_SAMPLE(_State);
+	float4 sR = RIGHT_SAMPLE(_State); 
+	float4 sU = TOP_SAMPLE(_State);
+	float4 sD = BOTTOM_SAMPLE(_State);
+
+	//float4 s = _State.SampleLevel(LinearSampler, float2(0, 0), 0);
+
+	float4 change = float4(0, 0, 0, 0);
+
+	h_(change) = 
+		-( H_(sC) + 1) * (
+			(U_(sR) - U_(sL)) * _1over2dx + 
+			(V_(sU) - V_(sD)) * _1over2dy
+		);
+
+	U_(change) =
+		- _g * (h_(sR) - h_(sL)) * _1over2dx
+		- _b * U_(sC)
+		+ _f * V_(sC);
+
+	V_(change) =
+		- _g * (h_(sU) - h_(sD)) * _1over2dy
+		- _b * V_(sC)
+		+ _f * U_(sC);
+
+	CURRENT_SAMPLE(_State) += _DeltaTime * change;
+}
