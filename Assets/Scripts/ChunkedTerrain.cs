@@ -4,7 +4,7 @@ using Assets.Scripts.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public class TerrainGenerator : MonoBehaviour
+public class ChunkedTerrain : MonoBehaviour
 {
     [Serializable]
     public class RenderSettings
@@ -103,7 +103,7 @@ public class TerrainGenerator : MonoBehaviour
         }
     }
 
-    GameObject GenerateChunk(Vector3 chunkSize, Vector2 uvStart, Vector2 uvEnd, ChunkLODSetting settings, int lodLevel)
+    private GameObject GenerateChunk(Vector3 chunkSize, Vector2 uvStart, Vector2 uvEnd, ChunkLODSetting settings, int lodLevel)
     {
         var chunkObject = new GameObject(string.Format("Terrain_Chunk_LOD{0}", lodLevel));
         var chunkMeshFilter = chunkObject.AddComponent<MeshFilter>();

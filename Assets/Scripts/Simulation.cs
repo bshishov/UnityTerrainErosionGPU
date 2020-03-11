@@ -2,20 +2,15 @@
 using Assets.Scripts.Utils;
 using UnityEngine;
 
-public class CustomTerrain : MonoBehaviour
+public class Simulation : MonoBehaviour
 {
-    [Header("Main settings")]
+    [Header("References")]
     public Material[] Materials;
     public ComputeShader ErosionComputeShader;
     public Texture2D InitialState;
     public Material InitHeightMap;
-    public Texture2D RainMap;
-
-    [Range(32, 1024)]
-    public int Width = 256;
-    [Range(32, 1024)]
-    public int Height = 256;
-
+    
+    [Header("Drawing")]
     public float BrushAmount = 0f;
         
     public InputModes InputMode = InputModes.AddWater;
@@ -80,9 +75,13 @@ public class CustomTerrain : MonoBehaviour
             
     }
         
+    [Header("Simulation settings")]
+    [Range(32, 1024)]
+    public int Width = 256;
+    [Range(32, 1024)]
+    public int Height = 256;
     public SimulationSettings Settings;
-
-    // Computation stuff
+    
     // State texture ARGBFloat
     // R - surface height  [0, +inf]
     // G - water over surface height [0, +inf]
