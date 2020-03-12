@@ -88,6 +88,7 @@ public class Simulation : MonoBehaviour
     // B - Suspended sediment amount [0, +inf]
     // A - Hardness of the surface [0, 1]
     private RenderTexture _stateTexture;
+    private RenderTexture _stateTextureBuffer;
 
     // Output water flux-field texture
     // represents how much water is OUTGOING in each direction
@@ -134,12 +135,15 @@ public class Simulation : MonoBehaviour
 
     // Brush
     private Plane _floor = new Plane(Vector3.up, Vector3.zero);
-    private float _brushRadius = 0.1f;
+    private float _brushRadius = 0.05f;
     private Vector4 _inputControls;
+    private Material _copyMat;
 
     void Start()
     {
         Camera.main.depthTextureMode = DepthTextureMode.Depth;
+
+        _copyMat = new Material(Shader.Find("Hidden/Copy"));
 
         // Set everything up
         Initialize();
@@ -238,6 +242,13 @@ public class Simulation : MonoBehaviour
             filterMode = FilterMode.Bilinear,
             wrapMode = TextureWrapMode.Clamp
         };
+        
+        _stateTextureBuffer = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat)
+        {
+            enableRandomWrite = false,
+            filterMode = FilterMode.Bilinear,
+            wrapMode = TextureWrapMode.Clamp
+        };
 
         // Initialize texture for storing flow
         _waterFluxTexture = new RenderTexture(Width, Height, 0, RenderTextureFormat.ARGBFloat)
@@ -321,6 +332,37 @@ public class Simulation : MonoBehaviour
         {
             material.SetTexture(StateTextureKey, _stateTexture);
         }
+    }
+    
+    public enum StateChannel : int
+    {
+        SurfaceHeight = 0,
+        Water = 1,
+        SuspendedSediment = 2,
+        SurfaceHardness = 3
+    } 
+    
+    public void UpdateStateFromTexture(Texture source, 
+        int sourceChannel = 0, 
+        StateChannel targetStateChannel = StateChannel.SurfaceHeight,
+        float scale = 1f,
+        float bias = 0f)
+    {
+        Graphics.Blit(_stateTexture, _stateTextureBuffer);
+        Debugger.Instance.Display("StateSource", source);
+        _copyMat.SetTexture("_PrevTex", _stateTextureBuffer);
+        _copyMat.SetTexture("_HTex", source);
+        _copyMat.SetInt("_SrcChannel", sourceChannel);
+        _copyMat.SetInt("_TgtChannel", (int)targetStateChannel);
+        _copyMat.SetFloat("_Scale", scale);
+        _copyMat.SetFloat("_Bias", bias);
+        Graphics.Blit(null, _stateTexture, _copyMat);
+    }
+
+    public void UpdateSurfaceFromTerrainData(TerrainData terrainData)
+    {
+        UpdateStateFromTexture(terrainData.heightmapTexture, 0, 
+            StateChannel.SurfaceHeight, scale: terrainData.size.y * 2);
     }
 
     public void OnGUI()

@@ -132,7 +132,7 @@ While water flows over terrain it takes (erodes) and transports some amount of s
    - [`Shaders/Surface.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/Surface.shader) - A lit shader to render the terrain surface. In vertex shader vertex positions are updated from state texture and normals are computed.
    - [`Shaders/InitHeightmap.shader`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Shaders/InitHeightmap.shader) - A special shader to initialize initial state from common grayscale heightmap texture. Since state texture is a float texture and operates with values higher than 1 the original heightmap texture should be scaled. This shader is used in the special material used in `Simulation.cs`.
  - [`Scripts/Simulation.cs`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Scripts/Simulation.cs) - main Monobehavior responsible for compute shader setup, dispatching computation to the GPU, texture creation, parameter sharing, and dispatching drawing.
- - [`Scripts/ChunkedTerrain.cs`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Scripts/ChunkedTerrain.cs) - main Monobehavior responsible for terrain mesh creation.
+ - [`Scripts/ChunkedPlane.cs`](https://github.com/bshishov/UnityTerrainErosionGPU/blob/master/Assets/Scripts/ChunkedPlane.cs) - main Monobehavior responsible for terrain mesh creation.
 
 ## References
 - Mei, Xing, Philippe Decaudin, and Bao-Gang Hu. "**Fast hydraulic erosion simulation and visualization on GPU.**" 15th Pacific Conference on Computer Graphics and Applications (PG'07). IEEE, 2007. http://www.nlpr.ia.ac.cn/2007papers/gjhy/gh116.pdf

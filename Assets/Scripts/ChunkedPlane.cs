@@ -4,7 +4,7 @@ using Assets.Scripts.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-public class ChunkedTerrain : MonoBehaviour
+public class ChunkedPlane : MonoBehaviour
 {
     [Serializable]
     public class RenderSettings
