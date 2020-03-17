@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Assets.Scripts.Utils;
 using UnityEngine;
 using UnityEngine.Rendering;
+using Utils;
 
 public class ChunkedPlane : MonoBehaviour
 {
@@ -105,7 +106,7 @@ public class ChunkedPlane : MonoBehaviour
 
     private GameObject GenerateChunk(Vector3 chunkSize, Vector2 uvStart, Vector2 uvEnd, ChunkLODSetting settings, int lodLevel)
     {
-        var chunkObject = new GameObject(string.Format("Terrain_Chunk_LOD{0}", lodLevel));
+        var chunkObject = new GameObject($"Terrain_Chunk_LOD{lodLevel}");
         var chunkMeshFilter = chunkObject.AddComponent<MeshFilter>();
         var chunkMeshRenderer = chunkObject.AddComponent<MeshRenderer>();
 

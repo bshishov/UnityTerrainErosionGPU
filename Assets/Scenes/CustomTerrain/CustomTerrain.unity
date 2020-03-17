@@ -341,6 +341,7 @@ MonoBehaviour:
   Materials:
   - {fileID: 2100000, guid: 1cf9e6530b1beb341b6ecccf254cf279, type: 2}
   - {fileID: 2100000, guid: 4dc86583f8ebc4d44be01aada5cc6c14, type: 2}
+  - {fileID: 2100000, guid: e72cc0628d750ef469589d7be7ed5d90, type: 2}
   ErosionComputeShader: {fileID: 7200000, guid: fcfc55914f9fdb646be1044044c2d042,
     type: 3}
   InitialState: {fileID: 2800000, guid: 43149b43056f9c340b49f9a408fc3284, type: 3}
@@ -379,6 +380,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 2
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1427476926
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1427476928}
+  - component: {fileID: 1427476927}
+  m_Layer: 0
+  m_Name: WaterBoundaries
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1427476927
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1427476926}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebdd905ab35049e6b8ab362d30c0b560, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  Size: {x: 512, y: 100, z: 512}
+  Material: {fileID: 2100000, guid: e72cc0628d750ef469589d7be7ed5d90, type: 2}
+  Resolution: {x: 512, y: 512}
+--- !u!4 &1427476928
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1427476926}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1533200768
 GameObject:

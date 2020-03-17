@@ -1,7 +1,6 @@
-﻿using System;
-using UnityEngine;
+﻿using UnityEngine;
 
-namespace Assets.Scripts.Utils
+namespace Utils
 {
     public static class MeshUtils
     {
@@ -11,13 +10,13 @@ namespace Assets.Scripts.Utils
             var normals = new Vector3[vertices.Length];
             var uvs = new Vector2[vertices.Length];
             var triangles = new int[(axis0Vertices - 1) * (axis1Vertices - 1) * 2 * 3];
-            var normal = Vector3.Cross(axis1, axis0);
+            var normal = Vector3.Cross(axis1, axis0).normalized;
 
             // Vertices
             for (var i = 0; i < vertices.Length; i++)
             {
-                var i0 = i / axis0Vertices;
-                var i1 = i % axis0Vertices;
+                var i0 = i / axis1Vertices;
+                var i1 = i % axis1Vertices;
                 var localU = i0 / (axis0Vertices - 1f);
                 var localV = i1 / (axis1Vertices - 1f);
 
@@ -33,21 +32,21 @@ namespace Assets.Scripts.Utils
             {
                 for (var i1 = 0; i1 < axis1Vertices - 1; i1++)
                 {
-                    triangles[vertexIndex++] = (i0 + 0) * axis0Vertices + (i1 + 0);
-                    triangles[vertexIndex++] = (i0 + 1) * axis0Vertices + (i1 + 1);
-                    triangles[vertexIndex++] = (i0 + 1) * axis0Vertices + (i1 + 0);
+                    triangles[vertexIndex++] = (i0 + 0) * axis1Vertices + (i1 + 0);
+                    triangles[vertexIndex++] = (i0 + 1) * axis1Vertices + (i1 + 1);
+                    triangles[vertexIndex++] = (i0 + 1) * axis1Vertices + (i1 + 0);
 
-                    triangles[vertexIndex++] = (i0 + 0) * axis0Vertices + (i1 + 0);
-                    triangles[vertexIndex++] = (i0 + 0) * axis0Vertices + (i1 + 1);
-                    triangles[vertexIndex++] = (i0 + 1) * axis0Vertices + (i1 + 1);
+                    triangles[vertexIndex++] = (i0 + 0) * axis1Vertices + (i1 + 0);
+                    triangles[vertexIndex++] = (i0 + 0) * axis1Vertices + (i1 + 1);
+                    triangles[vertexIndex++] = (i0 + 1) * axis1Vertices + (i1 + 1);
                 }
             }
 
             var mesh = new Mesh()
             {
-                name = string.Format("Plane_{0}x{1}", axis0Vertices, axis1Vertices),
+                name = $"Plane_{axis0Vertices}x{axis1Vertices}",
                 vertices = vertices,
-                //normals = normals,
+                normals = normals,
                 uv = uvs,
                 triangles = triangles
             };
